@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { crystals, defaultSettings, modules, type CrystalType, type DisplaySettings, type ModuleId, type ModelStyle } from '../data/crystals';
 import { Icon } from './Icons';
 
@@ -26,14 +27,16 @@ export function ControlPanel({ activeModule, crystal, settings, carbonInserted, 
   const info = crystals[crystal];
   const patch = (partial: Partial<DisplaySettings>) => onSettingsChange({ ...settings, ...partial });
   const setModel = (modelStyle: ModelStyle) => patch({ modelStyle });
+  const [leftTab, setLeftTab] = useState<'modules' | 'display'>('modules');
 
   return (
     <aside className="left-rail panel-stack">
       <section className="panel module-panel">
         <div className="panel-tabs" role="tablist" aria-label="左侧设置">
-          <button className="panel-tab active" type="button"><Icon name="lattice" />功能模块</button>
-          <button className="panel-tab" type="button"><Icon name="gear" />显示设置</button>
+          <button className={`panel-tab ${leftTab === 'modules' ? 'active' : ''}`} type="button" onClick={() => setLeftTab('modules')}><Icon name="lattice" />功能模块</button>
+          <button className={`panel-tab ${leftTab === 'display' ? 'active' : ''}`} type="button" onClick={() => setLeftTab('display')}><Icon name="gear" />显示设置</button>
         </div>
+        {leftTab === 'modules' ? (
         <div className="module-list">
           {modules.map((item) => (
             <button
@@ -49,36 +52,40 @@ export function ControlPanel({ activeModule, crystal, settings, carbonInserted, 
             </button>
           ))}
         </div>
-      </section>
+        ) : (
+        <div className="display-settings-tab">
+          <label className="field-label">当前结构</label>
+          <div className="readonly-chip">{info.title}</div>
 
-      <section className="panel controls-panel">
-        <div className="panel-heading">模型与显示</div>
-        <label className="field-label">当前结构</label>
-        <div className="readonly-chip">{info.title}</div>
+          <label className="field-label">模型类型</label>
+          <div className="segmented compact" role="group" aria-label="模型类型">
+            <button className={settings.modelStyle === 'rigid' ? 'active' : ''} type="button" onClick={() => setModel('rigid')}>刚性球模型</button>
+            <button className={settings.modelStyle === 'ball-stick' ? 'active' : ''} type="button" onClick={() => setModel('ball-stick')}>球棍模型</button>
+          </div>
 
-        <label className="field-label">模型类型</label>
-        <div className="segmented compact" role="group" aria-label="模型类型">
-          <button className={settings.modelStyle === 'rigid' ? 'active' : ''} type="button" onClick={() => setModel('rigid')}>刚性球模型</button>
-          <button className={settings.modelStyle === 'ball-stick' ? 'active' : ''} type="button" onClick={() => setModel('ball-stick')}>球棍模型</button>
+          <div className="switch-list">
+            <Toggle checked={settings.showCell} label="显示晶胞框线" onChange={(checked) => patch({ showCell: checked })} />
+            <Toggle checked={settings.showAxes} label="显示坐标轴" onChange={(checked) => patch({ showAxes: checked })} />
+            <Toggle checked={settings.showLabels} label="显示原子编号" onChange={(checked) => patch({ showLabels: checked })} />
+            <Toggle checked={settings.showSupercell} label="显示相邻晶胞（2×2×2）" onChange={(checked) => patch({ showSupercell: checked })} />
+          </div>
+
+          <label className="range-row">
+            <span>原子透明度</span>
+            <input type="range" min="35" max="100" value={Math.round(settings.atomOpacity * 100)} onChange={(event) => patch({ atomOpacity: Number(event.target.value) / 100 })} />
+            <b>{Math.round(settings.atomOpacity * 100)}%</b>
+          </label>
+          <label className="range-row">
+            <span>动画速度</span>
+            <input type="range" min="0" max="200" value={Math.round(settings.speed * 100)} onChange={(event) => patch({ speed: Number(event.target.value) / 100 })} />
+            <b>{settings.speed.toFixed(1)}x</b>
+          </label>
+
+          <button className="reset-wide" type="button" onClick={() => onSettingsChange(defaultSettings)}>
+            <Icon name="reset" />恢复默认设置
+          </button>
         </div>
-
-        <div className="switch-list">
-          <Toggle checked={settings.showCell} label="显示晶胞框线" onChange={(checked) => patch({ showCell: checked })} />
-          <Toggle checked={settings.showAxes} label="显示坐标轴" onChange={(checked) => patch({ showAxes: checked })} />
-          <Toggle checked={settings.showLabels} label="显示原子编号" onChange={(checked) => patch({ showLabels: checked })} />
-          <Toggle checked={settings.showSupercell} label="显示相邻晶胞（2×2×2）" onChange={(checked) => patch({ showSupercell: checked })} />
-        </div>
-
-        <label className="range-row">
-          <span>原子透明度</span>
-          <input type="range" min="35" max="100" value={Math.round(settings.atomOpacity * 100)} onChange={(event) => patch({ atomOpacity: Number(event.target.value) / 100 })} />
-          <b>{Math.round(settings.atomOpacity * 100)}%</b>
-        </label>
-        <label className="range-row">
-          <span>动画速度</span>
-          <input type="range" min="0" max="200" value={Math.round(settings.speed * 100)} onChange={(event) => patch({ speed: Number(event.target.value) / 100 })} />
-          <b>{settings.speed.toFixed(1)}x</b>
-        </label>
+        )}
 
         {activeModule === 'carbon' && (
           <div className="carbon-box">
@@ -91,10 +98,6 @@ export function ControlPanel({ activeModule, crystal, settings, carbonInserted, 
             </button>
           </div>
         )}
-
-        <button className="reset-wide" type="button" onClick={() => onSettingsChange(defaultSettings)}>
-          <Icon name="reset" />恢复默认设置
-        </button>
       </section>
     </aside>
   );

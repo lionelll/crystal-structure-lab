@@ -31,7 +31,7 @@ export default function App() {
         <div className="brand">
           <div className="brand-mark"><Icon name="cube" /></div>
           <div>
-            <h1>材料基 · 晶体结构 3D 可视化实验室</h1>
+            <h1>材科基 · 晶体结构 3D 可视化实验室</h1>
             <span>Materials Fundamentals Crystal Lab</span>
           </div>
         </div>

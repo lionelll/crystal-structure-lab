@@ -69,6 +69,7 @@ button { border: 0; color: inherit; cursor: pointer; }
 .module-row.active { background: linear-gradient(135deg, #0e86ff, #0759b6); box-shadow: 0 7px 18px rgba(9, 106, 220, .25); }
 .module-row svg { width: 22px; height: 22px; color: #ecf6ff; }
 .module-index { color: #eaf4ff; opacity: .95; }
+.display-settings-tab { padding: 8px 0 12px; }
 .controls-panel { padding-bottom: 12px; }
 .panel-heading, .card-title { min-height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015)); border-bottom: 1px solid var(--line); font-weight: 800; }
 .field-label { display: block; padding: 11px 16px 7px; color: #d9e6f4; font-size: 14px; }
@@ -124,7 +125,8 @@ button { border: 0; color: inherit; cursor: pointer; }
 .bar-wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 7px; position: relative; opacity: .86; }
 .bar-wrap.selected { opacity: 1; }
 .bar-wrap.selected .bar { box-shadow: 0 0 18px rgba(21,136,255,.35); }
-.bar { width: 58px; min-height: 6px; border-radius: 5px 5px 2px 2px; transition: height .35s ease; }
+.bar { width: 58px; min-height: 6px; border-radius: 5px 5px 2px 2px; animation: bar-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes bar-rise { from { height: 0 !important; } }
 .bar-value { font-weight: 800; color: #f1f7ff; }
 .bar-name { height: 20px; color: #d8e4f1; }
 .formula-card { min-height: 162px; }
@@ -139,6 +141,11 @@ button { border: 0; color: inherit; cursor: pointer; }
 .spec-block span { color: #7dd0ff; font-size: 12px; font-weight: 800; white-space: nowrap; }
 .spec-block b { color: #d9e6f4; font-size: 12px; line-height: 1.55; font-weight: 550; }
 .carbon-state { color: #f5c38a !important; }
+.bravais-stepper { position: absolute; left: 50%; top: 48px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 16px; border: 1px solid rgba(125,208,255,.32); border-radius: 999px; background: rgba(7,13,22,.78); backdrop-filter: blur(8px); z-index: 2; }
+.bravais-stepper button { min-height: 30px; padding: 0 12px; border-radius: 6px; background: rgba(255,255,255,.06); color: #dce8f5; font-size: 13px; font-weight: 650; transition: background .15s; }
+.bravais-stepper button:hover:not(:disabled) { background: rgba(21,136,255,.35); }
+.bravais-stepper button:disabled { opacity: 0.35; cursor: default; }
+.bravais-stepper span { color: #7dd0ff; font-size: 14px; font-weight: 700; white-space: nowrap; }
 .interaction-tip { position: absolute; left: 17px; bottom: 16px; max-width: min(520px, calc(100% - 390px)); padding: 8px 12px; border: 1px solid rgba(125,208,255,.24); border-radius: 999px; background: rgba(7,13,22,.62); color: #dce8f5; backdrop-filter: blur(8px); font-size: 13px; line-height: 1.35; }
 .status-strip { display: flex; align-items: center; gap: 18px; padding: 0 12px; color: #8fa1b5; font-size: 12px; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,12,.72); display: grid; place-items: center; z-index: 20; padding: 20px; }
