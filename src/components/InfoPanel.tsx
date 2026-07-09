@@ -1,4 +1,4 @@
-import { apfBars, crystals, modules, type CrystalType, type ModuleId } from '../data/crystals';
+import { apfBars, crystals, modules, moduleSpecs, type CrystalType, type ModuleId } from '../data/crystals';
 
 interface Props {
   crystal: CrystalType;
@@ -20,6 +20,7 @@ const moduleDetails: Record<ModuleId, (type: CrystalType) => string> = {
 export function InfoPanel({ crystal, activeModule, carbonInserted }: Props) {
   const info = crystals[crystal];
   const module = modules.find((item) => item.id === activeModule)!;
+  const spec = moduleSpecs[activeModule];
   const maxBar = 100;
 
   return (
@@ -65,6 +66,12 @@ export function InfoPanel({ crystal, activeModule, carbonInserted }: Props) {
         <div className="card-title">教学解析</div>
         <p>{moduleDetails[activeModule](crystal)}</p>
         <p className="module-note"><strong>{module.index} {module.title}</strong>：{module.summary}</p>
+        <div className="spec-block" aria-label="PRD 实验映射">
+          <div><span>实验目标</span><b>{spec.goal}</b></div>
+          <div><span>交互需求</span><b>{spec.interaction}</b></div>
+          <div><span>开发逻辑</span><b>{spec.logic}</b></div>
+          <div><span>视觉反馈</span><b>{spec.visual}</b></div>
+        </div>
         {activeModule === 'carbon' && (
           <p className="carbon-state">当前碳原子：{carbonInserted ? '已嵌入间隙' : '位于晶胞外，等待嵌入'}</p>
         )}

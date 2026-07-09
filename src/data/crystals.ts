@@ -54,6 +54,13 @@ export interface ModuleItem {
   summary: string;
 }
 
+export interface ModuleSpec {
+  goal: string;
+  interaction: string;
+  logic: string;
+  visual: string;
+}
+
 export const modules: ModuleItem[] = [
   { id: 'cell', index: 1, title: '晶胞模型', summary: '展示基体原子、晶胞框线、坐标轴和模型类型切换。' },
   { id: 'bravais', index: 2, title: '空间点阵', summary: '扩展为 2×2×2 阵列，观察布拉菲点阵平移重复特征。' },
@@ -64,6 +71,58 @@ export const modules: ModuleItem[] = [
   { id: 'octa', index: 7, title: '八面体间隙', summary: '显示八面体间隙位置和多面体连接。' },
   { id: 'carbon', index: 8, title: '碳原子嵌入', summary: '点击间隙或使用按钮，把碳原子嵌入优先占据位置。' },
 ];
+
+
+export const moduleSpecs: Record<ModuleId, ModuleSpec> = {
+  cell: {
+    goal: '建立 FCC / BCC / HCP 的基础晶胞空间概念。',
+    interaction: '切换刚性球模型与球棍模型，显示或隐藏晶胞框线、坐标轴和原子编号。',
+    logic: '以 a = 1.0 为统一晶胞尺度，立方晶胞原点位于左下前角，HCP 使用理想 c/a 比展示上下密排层。',
+    visual: '基体原子用蓝紫色球体，选中或示范原子用黄色高亮，框线与坐标轴保持低干扰透明显示。',
+  },
+  bravais: {
+    goal: '理解空间点阵的平移重复，而不是只看单个晶胞。',
+    interaction: '进入空间点阵模块后自动展开 2×2×2 相邻晶胞阵列。',
+    logic: '复制晶胞基元并按晶格矢量平移，标出角点、面心、体心或六方层的周期延拓关系。',
+    visual: '相邻晶胞使用更明亮的框线，保留原子编号用于观察重复点阵位置。',
+  },
+  packing: {
+    goal: '把密排面和密排方向从 Miller 指数转换成可见的空间几何。',
+    interaction: '高亮典型密排面，并将剖面平移展开；箭头穿过相切原子的中心表示密排方向。',
+    logic: 'FCC 对应 {111}/<110>，BCC 对应 {110}/<111>，HCP 对应 {0001}/<11-20>。',
+    visual: '半透明切面、展开后的虚线剖面和方向箭头同时显示，帮助对照面内原子排布。',
+  },
+  coordination: {
+    goal: '通过点选任意原子理解配位数和最近邻定义。',
+    interaction: '点击画布中的任意基体原子，该原子变为中心原子，最近邻按距离排序并编号。',
+    logic: '在相邻晶胞中搜索距离中心原子最近的一组原子，数量等于当前结构配位数。',
+    visual: '中心原子黄色发光，最近邻用黄色连线、编号和波纹圈标记。',
+  },
+  density: {
+    goal: '把 APF 致密度公式与三维裁切拼合过程关联起来。',
+    interaction: '进入致密度模块后显示裁切圈、拼合碎片示意，右侧 APF 柱状图同步突出当前结构。',
+    logic: '按照晶胞内有效原子数和原子半径计算 APF，比较 FCC/HCP 74% 与 BCC 68%。',
+    visual: '3D 中使用裁切环和拼合小球示意，2D 图表用同色柱状读数显示。',
+  },
+  tetra: {
+    goal: '定位四面体间隙，并看清它由哪些基体原子围成。',
+    interaction: '点击任一绿色间隙小球可选中该间隙，显示发光球和多面体包围线框。',
+    logic: 'FCC 典型四面体间隙坐标为 (1/4,1/4,1/4) 等 8 个位置；HCP 采用上下密排层之间的典型位置。',
+    visual: '间隙半径约 0.1a，选中态放大并用绿色线框显示四面体包络。',
+  },
+  octa: {
+    goal: '定位八面体间隙，并与四面体间隙进行尺寸和位置对比。',
+    interaction: '点击任一橙色间隙小球可选中该间隙，显示八面体包络。',
+    logic: 'FCC 八面体间隙位于体心与棱心，BCC 位于棱心和面心附近，HCP 位于垂直对齐的三角孔之间。',
+    visual: '橙色发光球表示可嵌入位置，线框用于强调八面体几何边界。',
+  },
+  carbon: {
+    goal: '演示碳原子优先进入八面体间隙的材料学含义。',
+    interaction: '点击橙色八面体间隙或左侧按钮，把灰色碳原子放入目标间隙。',
+    logic: '用 FCC/BCC 间隙位置和局部畸变说明奥氏体与铁素体固溶碳能力差异。',
+    visual: '碳原子未嵌入时显示运动箭头，嵌入后在目标间隙发光并保留 C 标记。',
+  },
+};
 
 export const crystals: Record<CrystalType, CrystalInfo> = {
   FCC: {
