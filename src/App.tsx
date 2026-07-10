@@ -10,6 +10,7 @@ export default function App() {
   const [activeModule, setActiveModule] = useState<ModuleId>('cell');
   const [settings, setSettings] = useState<DisplaySettings>(defaultSettings);
   const [carbonInserted, setCarbonInserted] = useState(false);
+  const [carbonGapType, setCarbonGapType] = useState<'octa' | 'tetra'>('octa');
   const [helpOpen, setHelpOpen] = useState(false);
   const canvasRef = useRef<CrystalCanvasHandle>(null);
 
@@ -18,6 +19,7 @@ export default function App() {
   const handleCrystalChange = (next: CrystalType) => {
     setCrystal(next);
     setCarbonInserted(false);
+    if (next === 'HCP' && activeModule === 'carbon') setActiveModule('cell');
   };
 
   const toggleFullscreen = async () => {
@@ -45,11 +47,10 @@ export default function App() {
         </nav>
 
         <div className="top-actions">
-          <button type="button" onClick={() => canvasRef.current?.resetView()}><Icon name="reset" />重置</button>
-          <button type="button" onClick={toggleFullscreen}><Icon name="fullscreen" />全屏</button>
-          <button type="button" onClick={() => setHelpOpen(true)}><Icon name="help" />帮助</button>
-          <button type="button" onClick={() => canvasRef.current?.capture()}><Icon name="camera" />截图</button>
-          <button type="button" className="more-button"><Icon name="more" />更多</button>
+          <button type="button" onClick={() => canvasRef.current?.resetView()}><Icon name="reset" /><span>重置</span></button>
+          <button type="button" onClick={toggleFullscreen}><Icon name="fullscreen" /><span>全屏</span></button>
+          <button type="button" onClick={() => setHelpOpen(true)}><Icon name="help" /><span>帮助</span></button>
+          <button type="button" onClick={() => canvasRef.current?.capture()}><Icon name="camera" /><span>截图</span></button>
         </div>
       </header>
 
@@ -59,6 +60,7 @@ export default function App() {
           crystal={crystal}
           settings={settings}
           carbonInserted={carbonInserted}
+          carbonGapType={carbonGapType}
           onModuleChange={setActiveModule}
           onSettingsChange={setSettings}
           onCarbonChange={setCarbonInserted}
@@ -73,6 +75,7 @@ export default function App() {
               settings={settings}
               carbonInserted={carbonInserted}
               onCarbonChange={setCarbonInserted}
+              onCarbonGapType={setCarbonGapType}
             />
           </div>
 
@@ -100,7 +103,7 @@ export default function App() {
           <div className="help-modal panel" role="dialog" aria-modal="true" aria-label="帮助" onClick={(event) => event.stopPropagation()}>
             <div className="card-title">操作帮助</div>
             <p>拖拽旋转晶体，滚轮缩放，右键平移。左侧选择功能模块，顶部切换 FCC / BCC / HCP，底部工具栏控制拆解、截面、旋转和截图。</p>
-            <p>“碳原子嵌入”模块中，可点击画布里的橙色八面体间隙，也可以使用左侧按钮完成嵌入演示。</p>
+            <p>“碳原子嵌入”适用于 FCC / BCC，可点击橙色八面体或绿色四面体间隙，对比占位倾向与局部畸变。</p>
             <button className="primary-action" type="button" onClick={() => setHelpOpen(false)}>知道了</button>
           </div>
         </div>

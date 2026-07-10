@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { crystals, defaultSettings, modules, type CrystalType, type DisplaySettings, type ModuleId, type ModelStyle } from '../data/crystals';
 import { Icon } from './Icons';
 
@@ -7,6 +6,7 @@ interface Props {
   crystal: CrystalType;
   settings: DisplaySettings;
   carbonInserted: boolean;
+  carbonGapType: 'octa' | 'tetra';
   onModuleChange: (id: ModuleId) => void;
   onSettingsChange: (settings: DisplaySettings) => void;
   onCarbonChange: (value: boolean) => void;
@@ -23,36 +23,42 @@ const moduleIcons: Record<ModuleId, Parameters<typeof Icon>[0]['name']> = {
   carbon: 'carbon',
 };
 
-export function ControlPanel({ activeModule, crystal, settings, carbonInserted, onModuleChange, onSettingsChange, onCarbonChange }: Props) {
+export function ControlPanel({ activeModule, crystal, settings, carbonInserted, carbonGapType, onModuleChange, onSettingsChange, onCarbonChange }: Props) {
   const info = crystals[crystal];
   const patch = (partial: Partial<DisplaySettings>) => onSettingsChange({ ...settings, ...partial });
   const setModel = (modelStyle: ModelStyle) => patch({ modelStyle });
-  const [leftTab, setLeftTab] = useState<'modules' | 'display'>('modules');
 
   return (
     <aside className="left-rail panel-stack">
       <section className="panel module-panel">
-        <div className="panel-tabs" role="tablist" aria-label="左侧设置">
-          <button className={`panel-tab ${leftTab === 'modules' ? 'active' : ''}`} type="button" onClick={() => setLeftTab('modules')}><Icon name="lattice" />功能模块</button>
-          <button className={`panel-tab ${leftTab === 'display' ? 'active' : ''}`} type="button" onClick={() => setLeftTab('display')}><Icon name="gear" />显示设置</button>
+        <div className="panel-heading">
+          <span><Icon name="lattice" />功能模块</span>
         </div>
-        {leftTab === 'modules' ? (
         <div className="module-list">
-          {modules.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              className={`module-row ${activeModule === item.id ? 'active' : ''}`}
-              onClick={() => onModuleChange(item.id)}
-              title={item.summary}
-            >
-              <Icon name={moduleIcons[item.id]} />
-              <span className="module-index">{item.index}</span>
-              <span>{item.title}</span>
-            </button>
-          ))}
+          {modules.map((item) => {
+            const disabled = crystal === 'HCP' && item.id === 'carbon';
+            return (
+              <button
+                type="button"
+                key={item.id}
+                className={`module-row ${activeModule === item.id ? 'active' : ''}`}
+                onClick={() => onModuleChange(item.id)}
+                title={disabled ? '碳原子嵌入实验仅用于 FCC / BCC' : item.summary}
+                disabled={disabled}
+              >
+                <Icon name={moduleIcons[item.id]} />
+                <span className="module-index">{item.index}</span>
+                <span>{item.title}</span>
+              </button>
+            );
+          })}
         </div>
-        ) : (
+      </section>
+
+      <section className="panel controls-panel">
+        <div className="panel-heading">
+          <span><Icon name="gear" />模型与显示</span>
+        </div>
         <div className="display-settings-tab">
           <label className="field-label">当前结构</label>
           <div className="readonly-chip">{info.title}</div>
@@ -85,7 +91,6 @@ export function ControlPanel({ activeModule, crystal, settings, carbonInserted, 
             <Icon name="reset" />恢复默认设置
           </button>
         </div>
-        )}
 
         {activeModule === 'carbon' && (
           <div className="carbon-box">
@@ -94,7 +99,7 @@ export function ControlPanel({ activeModule, crystal, settings, carbonInserted, 
               <p>{carbonInserted ? '已进入目标间隙，可对比 FCC / BCC 间隙差异。' : '等待嵌入。点击画布中的发光间隙或下方按钮。'}</p>
             </div>
             <button className="primary-action" type="button" onClick={() => onCarbonChange(!carbonInserted)}>
-              {carbonInserted ? '移出碳原子' : '放入八面体间隙'}
+              {carbonInserted ? '移出碳原子' : carbonGapType === 'tetra' ? '放入四面体间隙' : '放入八面体间隙'}
             </button>
           </div>
         )}

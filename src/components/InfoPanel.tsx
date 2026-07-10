@@ -1,4 +1,5 @@
-import { apfBars, crystals, modules, moduleSpecs, type CrystalType, type ModuleId } from '../data/crystals';
+import { useState } from 'react';
+import { apfBars, crystals, modules, type CrystalType, type ModuleId } from '../data/crystals';
 
 interface Props {
   crystal: CrystalType;
@@ -20,13 +21,15 @@ const moduleDetails: Record<ModuleId, (type: CrystalType) => string> = {
 export function InfoPanel({ crystal, activeModule, carbonInserted }: Props) {
   const info = crystals[crystal];
   const module = modules.find((item) => item.id === activeModule)!;
-  const spec = moduleSpecs[activeModule];
   const maxBar = 100;
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const toggle = (id: string) => setCollapsed((current) => ({ ...current, [id]: !current[id] }));
 
   return (
     <aside className="right-rail panel-stack">
-      <section className="panel info-card">
-        <div className="card-title">当前信息<span>⌄</span></div>
+      <section className={`panel info-card ${collapsed.info ? 'collapsed' : ''}`}>
+        <CardTitle title="当前信息" collapsed={collapsed.info} onToggle={() => toggle('info')} />
+        {!collapsed.info && (
         <dl className="info-grid">
           <dt>结构类型</dt><dd><span className="type-pill">{info.type}</span><span>{info.latticeName}</span></dd>
           <dt>晶格常数</dt><dd>{info.latticeConstant}</dd>
@@ -34,13 +37,16 @@ export function InfoPanel({ crystal, activeModule, carbonInserted }: Props) {
           <dt>晶胞内原子数</dt><dd>{info.atomsPerCell}</dd>
           <dt>配位数</dt><dd>{info.coordination}</dd>
           <dt>致密度（APF）</dt><dd>{info.apf.toFixed(2)}（{Math.round(info.apf * 100)}%）</dd>
-          <dt>密排面</dt><dd>{info.densePlane}</dd>
-          <dt>密排方向</dt><dd>{info.denseDirection}</dd>
+          <dt>{crystal === 'BCC' ? '最密排面' : '密排面'}</dt><dd>{info.densePlane}</dd>
+          <dt>{crystal === 'BCC' ? '最密方向' : '密排方向'}</dt><dd>{info.denseDirection}</dd>
         </dl>
+        )}
       </section>
 
-      <section className="panel chart-card">
-        <div className="card-title">致密度（APF）对比<span>⌄</span></div>
+      <section className={`panel chart-card ${collapsed.chart ? 'collapsed' : ''}`}>
+        <CardTitle title="致密度（APF）对比" collapsed={collapsed.chart} onToggle={() => toggle('chart')} />
+        {!collapsed.chart && (
+        <>
         <div className="chart-label">APF (%)</div>
         <div className="bar-chart" aria-label="APF 对比柱状图">
           <div className="axis-labels"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
@@ -54,28 +60,41 @@ export function InfoPanel({ crystal, activeModule, carbonInserted }: Props) {
             ))}
           </div>
         </div>
+        </>
+        )}
       </section>
 
-      <section className="panel formula-card">
-        <div className="card-title">公式与计算</div>
+      <section className={`panel formula-card ${collapsed.formula ? 'collapsed' : ''}`}>
+        <CardTitle title="公式与计算" collapsed={collapsed.formula} onToggle={() => toggle('formula')} />
+        {!collapsed.formula && (
+        <>
         <div className="formula-main">{info.formula}</div>
         <div className="formula-detail">= {info.formulaDetail}</div>
+        </>
+        )}
       </section>
 
-      <section className="panel teaching-card">
-        <div className="card-title">教学解析</div>
+      <section className={`panel teaching-card ${collapsed.teaching ? 'collapsed' : ''}`}>
+        <CardTitle title="教学解析" collapsed={collapsed.teaching} onToggle={() => toggle('teaching')} />
+        {!collapsed.teaching && (
+        <>
         <p>{moduleDetails[activeModule](crystal)}</p>
         <p className="module-note"><strong>{module.index} {module.title}</strong>：{module.summary}</p>
-        <div className="spec-block" aria-label="PRD 实验映射">
-          <div><span>实验目标</span><b>{spec.goal}</b></div>
-          <div><span>交互需求</span><b>{spec.interaction}</b></div>
-          <div><span>开发逻辑</span><b>{spec.logic}</b></div>
-          <div><span>视觉反馈</span><b>{spec.visual}</b></div>
-        </div>
         {activeModule === 'carbon' && (
           <p className="carbon-state">当前碳原子：{carbonInserted ? '已嵌入间隙' : '位于晶胞外，等待嵌入'}</p>
         )}
+        </>
+        )}
       </section>
     </aside>
+  );
+}
+
+function CardTitle({ title, collapsed, onToggle }: { title: string; collapsed?: boolean; onToggle: () => void }) {
+  return (
+    <button className="card-title card-title-button" type="button" onClick={onToggle} aria-expanded={!collapsed}>
+      <span>{title}</span>
+      <span aria-hidden="true">{collapsed ? '›' : '⌄'}</span>
+    </button>
   );
 }

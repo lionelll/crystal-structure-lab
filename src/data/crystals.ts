@@ -1,4 +1,6 @@
-export type CrystalType = 'FCC' | 'BCC' | 'HCP';
+import { latticeGeometry, type CrystalType } from './latticeGeometry';
+
+export type { CrystalType } from './latticeGeometry';
 export type ModuleId =
   | 'cell'
   | 'bravais'
@@ -130,7 +132,7 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     title: '面心立方结构',
     latticeName: '面心立方点阵',
     latticeConstant: 'a = 1.0000',
-    radius: 'R = 0.3536a',
+    radius: `R = ${latticeGeometry.FCC.atomRadiusOverA.toFixed(4)}a`,
     atomsPerCell: '4',
     coordination: 12,
     apf: 0.74,
@@ -152,7 +154,7 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     title: '体心立方结构',
     latticeName: '体心立方点阵',
     latticeConstant: 'a = 1.0000',
-    radius: 'R = 0.4330a',
+    radius: `R = ${latticeGeometry.BCC.atomRadiusOverA.toFixed(4)}a`,
     atomsPerCell: '2',
     coordination: 8,
     apf: 0.68,
@@ -162,19 +164,19 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     formulaDetail: '2 × 4/3π(0.4330a)³ / a³ = 68%',
     teaching: 'BCC 的原子沿体对角线相切，配位数为 8，致密度约 68%。与 FCC/HCP 相比，间隙形状更扁，碳原子嵌入会带来更明显晶格畸变。',
     bravais: '八个角点加一个体心点构成体心立方点阵，中心点与角点沿体对角线重复。',
-    packing: 'BCC 的典型密排面为 {110}，最密方向沿 <111> 体对角线。',
+    packing: 'BCC 不是密排结构。{110} 是其最密排面（非真正密排面），<111> 是最密方向。',
     gaps: {
       tetra: 'BCC 四面体间隙较多但不规则，碳进入后会引起显著畸变。',
       octa: 'BCC 八面体间隙位于棱心和面心附近，实际有效半径较小。',
     },
-    carbon: '碳在 BCC α-Fe 中固溶度低，原因是可用间隙尺寸小且局部畸变能高。',
+    carbon: '碳在 BCC α-Fe 中优先占据八面体间隙（尽管其几何尺寸 r=0.155R 小于四面体 r=0.291R），因为仅需沿 <100> 推开 2 个近邻原子。固溶度低于 FCC 奥氏体。',
   },
   HCP: {
     type: 'HCP',
     title: '密排六方结构',
-    latticeName: '六方密排结构',
-    latticeConstant: 'a = 1.0000, c/a = 1.633',
-    radius: 'R = 0.5000a',
+    latticeName: '六方点阵 + 双原子基元',
+    latticeConstant: `a = 1.0000, c/a = ${latticeGeometry.HCP.cOverA.toFixed(3)}`,
+    radius: `R = ${latticeGeometry.HCP.atomRadiusOverA.toFixed(4)}a`,
     atomsPerCell: '6',
     coordination: 12,
     apf: 0.74,
