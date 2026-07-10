@@ -1,6 +1,18 @@
 export type CrystalType = 'FCC' | 'BCC' | 'HCP';
 export type PositionTuple = readonly [number, number, number];
 
+export interface ClippingPlaneSpec {
+  normal: PositionTuple;
+  constant: number;
+}
+
+export interface DensityContribution {
+  site: 'corner' | 'face' | 'interior';
+  count: number;
+  fraction: number;
+  effective: number;
+}
+
 const idealHcpRatio = Math.sqrt(8 / 3);
 
 export const latticeGeometry = {
@@ -93,5 +105,42 @@ export function hcpGapPositions(kind: 'tetra' | 'octa'): PositionTuple[] {
     ...lowerHoles.map(([x, y]): PositionTuple => [x, y, -c / 8]),
     ...lowerHoles.map(([x, y]): PositionTuple => [x, y, c / 8]),
     ...upperHoles.map(([x, y]): PositionTuple => [x, y, 3 * c / 8]),
+  ];
+}
+
+export function sectionClippingPlaneSpec(): ClippingPlaneSpec {
+  return { normal: [1, 0, 0], constant: 0 };
+}
+
+export function densityCellClippingPlaneSpecs(crystal: CrystalType): ClippingPlaneSpec[] {
+  if (crystal !== 'HCP') {
+    const half = latticeGeometry[crystal].worldA / 2;
+    return [
+      { normal: [1, 0, 0], constant: half },
+      { normal: [-1, 0, 0], constant: half },
+      { normal: [0, 1, 0], constant: half },
+      { normal: [0, -1, 0], constant: half },
+      { normal: [0, 0, 1], constant: half },
+      { normal: [0, 0, -1], constant: half },
+    ];
+  }
+
+  const apothem = hcpGeometry.a * Math.cos(Math.PI / 6);
+  const sidePlanes = Array.from({ length: 6 }, (_, index): ClippingPlaneSpec => {
+    const angle = Math.PI / 6 + index * Math.PI / 3;
+    return { normal: [-Math.cos(angle), -Math.sin(angle), 0], constant: apothem };
+  });
+  return [
+    ...sidePlanes,
+    { normal: [0, 0, 1], constant: hcpGeometry.c / 2 },
+    { normal: [0, 0, -1], constant: hcpGeometry.c / 2 },
+  ];
+}
+
+export function hcpDensityContributions(): DensityContribution[] {
+  return [
+    { site: 'corner', count: 12, fraction: 1 / 6, effective: 2 },
+    { site: 'face', count: 2, fraction: 1 / 2, effective: 1 },
+    { site: 'interior', count: 3, fraction: 1, effective: 3 },
   ];
 }

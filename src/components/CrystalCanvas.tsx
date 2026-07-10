@@ -3,12 +3,16 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { crystals, type CrystalType, type DisplaySettings, type ModuleId } from '../data/crystals';
 import {
+  densityCellClippingPlaneSpecs,
   hcpCellAtoms,
   hcpCellOffset,
+  hcpDensityContributions,
   hcpGapPositions,
   hcpGeometry,
   hcpTranslation,
   latticeGeometry,
+  sectionClippingPlaneSpec,
+  type ClippingPlaneSpec,
 } from '../data/latticeGeometry';
 
 export interface CrystalCanvasHandle {
@@ -54,6 +58,11 @@ export interface RenderAtom {
   highlight?: boolean;
 }
 
+interface DynamicClippingPlane {
+  local: THREE.Plane;
+  world: THREE.Plane;
+}
+
 const atomColor = new THREE.Color('#777cff');
 const highlightColor = new THREE.Color('#fff65c');
 const faceColor = new THREE.Color('#7b82ff');
@@ -91,6 +100,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   const [bravaisStep, setBravaisStep] = useState(0);
   const coordAnimRef = useRef<{ objects: THREE.Object3D[]; startTime: number }>({ objects: [], startTime: 0 });
   const centerPulseRef = useRef<THREE.Mesh | null>(null);
+  const dynamicClippingRef = useRef<DynamicClippingPlane[]>([]);
 
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { moduleRef.current = activeModule; }, [activeModule]);
@@ -213,6 +223,12 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       if (s.autoRotate && rootRef.current) {
         rootRef.current.rotation.y += 0.006 * s.speed;
       }
+      if (rootRef.current && dynamicClippingRef.current.length > 0) {
+        rootRef.current.updateMatrixWorld(true);
+        dynamicClippingRef.current.forEach(({ local, world }) => {
+          world.copy(local).applyMatrix4(rootRef.current!.matrixWorld);
+        });
+      }
       const anim = coordAnimRef.current;
       if (anim.objects.length > 0) {
         const elapsed = (performance.now() - anim.startTime) / 1000;
@@ -255,11 +271,13 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     if (!root) return;
     clearGroup(root);
     pickablesRef.current = [];
+    dynamicClippingRef.current = [];
     root.rotation.set(-0.12, 0.26, 0.03);
 
     const repeat = settings.showSupercell || activeModule === 'bravais' || activeModule === 'coordination' ? 2 : 1;
     const hcpBravaisStep = crystal === 'HCP' && activeModule === 'bravais' ? bravaisStep : -1;
-    const atoms = createAtoms(crystal, repeat, settings.exploded || activeModule === 'density', activeModule, hcpBravaisStep);
+    const isDensity = activeModule === 'density';
+    const atoms = createAtoms(crystal, repeat, settings.exploded && !isDensity, activeModule, hcpBravaisStep);
     const geometry = latticeGeometry[crystal];
     const radius = settings.modelStyle === 'rigid'
       ? geometry.atomRadiusOverA * geometry.worldA
@@ -269,9 +287,25 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       : new THREE.Vector3(0, 0, 0);
     if (activeModule === 'coordination') markCoordinationFocus(atoms, focusTarget);
 
-    if (settings.showCell) addCellFrames(root, crystal, repeat, activeModule === 'bravais');
-    if (settings.modelStyle === 'ball-stick') addBonds(root, atoms, crystal);
-    addAtoms(root, atoms, radius, settings.atomOpacity, settings.showLabels, activeModule, pickablesRef.current, activeModule === 'bravais' ? repeat : 0);
+    const sectionSpec = settings.sectionView ? sectionClippingPlaneSpec() : null;
+    const sectionPlanes = !isDensity && sectionSpec
+      ? createDynamicClippingPlanes(root, [sectionSpec], dynamicClippingRef.current)
+      : [];
+    if (!isDensity) {
+      if (settings.showCell) addCellFrames(root, crystal, repeat, activeModule === 'bravais');
+      if (settings.modelStyle === 'ball-stick') addBonds(root, atoms, crystal, sectionPlanes);
+      addAtoms(
+        root,
+        atoms,
+        radius,
+        settings.atomOpacity,
+        settings.showLabels && !settings.sectionView,
+        activeModule,
+        pickablesRef.current,
+        activeModule === 'bravais' ? repeat : 0,
+        sectionPlanes,
+      );
+    }
     if (settings.showAxes) addAxes(root);
     if (activeModule === 'packing') addPacking(root, crystal);
     if (activeModule === 'coordination') {
@@ -284,7 +318,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     if (activeModule === 'octa') addGaps(root, crystal, 'octa', pickablesRef.current, selectedGapIndex);
     if (activeModule === 'carbon') addCarbon(root, crystal, carbonInserted, pickablesRef.current, selectedGapIndex);
     if (settings.sectionView) addSectionPlane(root, crystal);
-    if (activeModule === 'density') addDensityAssembly(root, crystal);
+    if (isDensity) addDensityAssembly(root, crystal, sectionSpec, dynamicClippingRef.current);
     if (hcpBravaisStep >= 0) addHcpBravaisLabels(root, hcpBravaisStep);
   }, [activeModule, bravaisStep, carbonInserted, coordinationTarget, crystal, selectedGapIndex, settings]);
 
@@ -305,7 +339,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         <span><MouseGlyph />右键：平移</span>
       </div>
       <div className="legend-box">
-        <Legend color="#7b82ff" label="基体原子" />
+        <Legend color="#777cff" label="基体原子" />
         <Legend color="#fff65c" label="选中原子" />
         <Legend color="#45d27a" label="间隙位置（四面体）" />
         <Legend color="#f39a42" label="间隙位置（八面体）" />
@@ -321,7 +355,11 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         <strong>{crystals[crystal].type}</strong>
         <span>{crystals[crystal].title}</span>
       </div>
-      <div className="interaction-tip">{getCanvasInstruction(activeModule)}</div>
+      <div className="interaction-tip">
+        {settings.sectionView
+          ? '真实截面已开启：半透明平面为裁切面，仅保留晶体局部 x ≥ 0 一侧。'
+          : getCanvasInstruction(activeModule)}
+      </div>
       {crystal === 'HCP' && activeModule === 'bravais' && (
         <div className="bravais-stepper">
           <button type="button" disabled={bravaisStep <= 0} onClick={() => setBravaisStep((s) => s - 1)}>◀ 上一步</button>
@@ -349,6 +387,16 @@ function clearGroup(group: THREE.Group) {
       else if (material) disposeMaterial(material);
     });
   }
+}
+
+function createDynamicClippingPlanes(group: THREE.Group, specs: ClippingPlaneSpec[], registry: DynamicClippingPlane[]) {
+  group.updateMatrixWorld(true);
+  return specs.map(({ normal, constant }) => {
+    const local = new THREE.Plane(new THREE.Vector3(...normal), constant);
+    const world = local.clone().applyMatrix4(group.matrixWorld);
+    registry.push({ local, world });
+    return world;
+  });
 }
 
 export function createAtoms(crystal: CrystalType, repeat: number, exploded: boolean, moduleId: ModuleId, hcpBravaisStep = -1): RenderAtom[] {
@@ -412,7 +460,7 @@ function markCoordinationFocus(atoms: RenderAtom[], target: THREE.Vector3) {
   if (closest >= 0) atoms[closest].highlight = true;
 }
 
-function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, showLabels: boolean, moduleId: ModuleId, pickables?: THREE.Object3D[], bravaisRepeat = 0) {
+function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, showLabels: boolean, moduleId: ModuleId, pickables?: THREE.Object3D[], bravaisRepeat = 0, clippingPlanes: THREE.Plane[] = []) {
   const sphere = new THREE.SphereGeometry(radius, 48, 32);
   const totalPerCell = atoms.length / Math.max(1, bravaisRepeat ** 3 || 1);
   atoms.forEach((atom, index) => {
@@ -429,6 +477,8 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
       transmission: 0,
       transparent: true,
       opacity: atomOpacity,
+      clippingPlanes,
+      side: clippingPlanes.length > 0 ? THREE.DoubleSide : THREE.FrontSide,
     });
     const mesh = new THREE.Mesh(sphere, material);
     mesh.position.copy(atom.position);
@@ -441,7 +491,7 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
     group.add(mesh);
 
     if (atom.highlight || (moduleId === 'coordination' && index % 2 === 0)) {
-      const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.18, 32, 16), new THREE.MeshBasicMaterial({ color: atom.highlight ? '#fff65c' : '#2b87ff', transparent: true, opacity: atom.highlight ? 0.18 : 0.06 }));
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.18, 32, 16), new THREE.MeshBasicMaterial({ color: atom.highlight ? '#fff65c' : '#2b87ff', transparent: true, opacity: atom.highlight ? 0.18 : 0.06, clippingPlanes }));
       halo.position.copy(atom.position);
       group.add(halo);
     }
@@ -454,11 +504,11 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
   });
 }
 
-function addBonds(group: THREE.Group, atoms: RenderAtom[], crystal: CrystalType) {
+function addBonds(group: THREE.Group, atoms: RenderAtom[], crystal: CrystalType, clippingPlanes: THREE.Plane[] = []) {
   const geometry = latticeGeometry[crystal];
   const threshold = 2 * geometry.atomRadiusOverA * geometry.worldA * 1.03;
   const bondRadius = 0.03;
-  const material = new THREE.MeshPhysicalMaterial({ color: '#c8d8ee', transparent: true, opacity: 0.55, roughness: 0.5, metalness: 0.1 });
+  const material = new THREE.MeshPhysicalMaterial({ color: '#c8d8ee', transparent: true, opacity: 0.55, roughness: 0.5, metalness: 0.1, clippingPlanes });
   for (let i = 0; i < atoms.length; i++) {
     for (let j = i + 1; j < atoms.length; j++) {
       const distance = atoms[i].position.distanceTo(atoms[j].position);
@@ -1033,23 +1083,18 @@ export function carbonStatus(crystal: CrystalType, inserted: boolean, isTetra: b
   return { text: `C -> 八面体间隙 ${getGapLabel(crystal, 'octa', localIndex)}`, color: '#7dd0ff' };
 }
 
-function addDensityAssembly(group: THREE.Group, crystal: CrystalType) {
+function addDensityAssembly(group: THREE.Group, crystal: CrystalType, sectionSpec: ClippingPlaneSpec | null, registry: DynamicClippingPlane[]) {
+  const clipSpecs = [
+    ...densityCellClippingPlaneSpecs(crystal),
+    ...(sectionSpec ? [sectionSpec] : []),
+  ];
+  const clipPlanes = createDynamicClippingPlanes(group, clipSpecs, registry);
   if (crystal === 'HCP') {
-    addDensityHcpFallback(group, crystal);
+    addDensityHcp(group, crystal, clipPlanes);
     return;
   }
-  const half = cellScale / 2;
-  const clipPlanes = [
-    new THREE.Plane(new THREE.Vector3(1, 0, 0), half),
-    new THREE.Plane(new THREE.Vector3(-1, 0, 0), half),
-    new THREE.Plane(new THREE.Vector3(0, 1, 0), half),
-    new THREE.Plane(new THREE.Vector3(0, -1, 0), half),
-    new THREE.Plane(new THREE.Vector3(0, 0, 1), half),
-    new THREE.Plane(new THREE.Vector3(0, 0, -1), half),
-  ];
 
-  const rigidRadius = crystal === 'FCC' ? 0.3535 : 0.433;
-  const radius = rigidRadius * cellScale;
+  const radius = latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA;
   const sphere = new THREE.SphereGeometry(radius, 48, 32);
   const base = crystal === 'FCC'
     ? [...cornerPositions.map((p) => ({ p, kind: 'corner' as const })), ...fccFacePositions.map((p) => ({ p, kind: 'face' as const }))]
@@ -1083,7 +1128,7 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType) {
 
   const assemblyY = -2.2;
   const info = crystals[crystal];
-  const cornerFraction = crystal === 'FCC' ? '1/8' : '1/8';
+  const cornerFraction = '1/8';
   const cornerCount = 8;
   const extraKind = crystal === 'FCC' ? '面心' : '体心';
   const extraFraction = crystal === 'FCC' ? '1/2' : '1';
@@ -1103,7 +1148,7 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType) {
   );
   cornerPiece.position.set(-1.6, assemblyY, 0);
   group.add(cornerPiece);
-  const cornerLabel = createTextSprite(`${cornerCount}×${cornerFraction}`, '#ffffff', 26);
+  const cornerLabel = createOverlayTextSprite(`${cornerCount}×${cornerFraction}`, '#ffffff', 26);
   cornerLabel.position.set(-1.6, assemblyY - 0.4, 0);
   cornerLabel.scale.set(0.7, 0.22, 1);
   group.add(cornerLabel);
@@ -1111,11 +1156,11 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType) {
   if (crystal === 'FCC') {
     const facePiece = new THREE.Mesh(
       new THREE.SphereGeometry(radius * 0.3, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshPhysicalMaterial({ color: '#7b82ff', transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+      new THREE.MeshPhysicalMaterial({ color: faceColor, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
     );
     facePiece.position.set(1.6, assemblyY, 0);
     group.add(facePiece);
-    const faceLabel = createTextSprite(`${extraCount}×${extraFraction}`, '#ffffff', 26);
+    const faceLabel = createOverlayTextSprite(`${extraCount}×${extraFraction}`, '#ffffff', 26);
     faceLabel.position.set(1.6, assemblyY - 0.4, 0);
     faceLabel.scale.set(0.7, 0.22, 1);
     group.add(faceLabel);
@@ -1126,7 +1171,7 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType) {
     );
     centerPieceBcc.position.set(1.6, assemblyY, 0);
     group.add(centerPieceBcc);
-    const centerLabel = createTextSprite(`${extraCount}×${extraFraction}`, '#ffffff', 26);
+    const centerLabel = createOverlayTextSprite(`${extraCount}×${extraFraction}`, '#ffffff', 26);
     centerLabel.position.set(1.6, assemblyY - 0.4, 0);
     centerLabel.scale.set(0.7, 0.22, 1);
     group.add(centerLabel);
@@ -1141,39 +1186,73 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType) {
     group.add(new THREE.ArrowHelper(dir, from, from.distanceTo(to), new THREE.Color(accentColor), 0.1, 0.06));
   });
 
-  const totalLabel = createTextSprite(`= ${totalAtoms} 个原子 → APF ${Math.round(info.apf * 100)}%`, '#ffffff', 28);
-  totalLabel.position.set(0, assemblyY + 0.42, 0);
-  totalLabel.scale.set(1.5, 0.32, 1);
+  const totalLabel = createOverlayTextSprite(
+    `角点 ${cornerCount}×${cornerFraction} + ${extraKind} ${extraCount}×${extraFraction} = ${totalAtoms} → APF ${Math.round(info.apf * 100)}%`,
+    '#ffffff',
+    27,
+  );
+  totalLabel.position.set(0, 2.1, 0);
+  totalLabel.scale.set(2, 0.34, 1);
   group.add(totalLabel);
-
-  const desc = createTextSprite(`角点 ${cornerCount}×${cornerFraction} + ${extraKind} ${extraCount}×${extraFraction} = ${totalAtoms}`, '#dbe7ff', 24);
-  desc.position.set(0, assemblyY - 0.5, 0);
-  desc.scale.set(1.65, 0.28, 1);
-  group.add(desc);
 }
 
-function addDensityHcpFallback(group: THREE.Group, crystal: CrystalType) {
+function addDensityHcp(group: THREE.Group, crystal: CrystalType, clippingPlanes: THREE.Plane[]) {
   const color = '#39c36e';
   const info = crystals[crystal];
-  const torus = new THREE.Mesh(new THREE.TorusGeometry(hcpGeometry.a * 0.78, 0.015, 8, 96), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.76 }));
-  torus.rotation.x = Math.PI / 2;
-  group.add(torus);
+  const radius = latticeGeometry.HCP.atomRadiusOverA * latticeGeometry.HCP.worldA;
+  const sphere = new THREE.SphereGeometry(radius, 48, 32);
+  hcpCellAtoms(true).forEach((site) => {
+    const siteColor = site.kind === 'base' ? color : site.kind === 'face' ? '#7dd0ff' : '#fff65c';
+    const mesh = new THREE.Mesh(
+      sphere,
+      new THREE.MeshPhysicalMaterial({
+        color: siteColor,
+        emissive: siteColor,
+        emissiveIntensity: 0.14,
+        metalness: 0.05,
+        roughness: 0.3,
+        transparent: true,
+        opacity: 0.84,
+        clippingPlanes,
+        side: THREE.DoubleSide,
+      }),
+    );
+    mesh.position.set(...site.position);
+    group.add(mesh);
+  });
+  addHcpFrame(group, new THREE.Vector3(), true);
 
-  const label = createTextSprite(`APF ${Math.round(info.apf * 100)}%`, '#ffffff', 38);
-  label.position.set(0, -1.85, 1.4);
-  label.scale.set(1.1, 0.35, 1);
-  group.add(label);
+  const heading = createOverlayTextSprite(`12×1/6 + 2×1/2 + 3×1 = 6 → APF ${Math.round(info.apf * 100)}%`, '#ffffff', 28);
+  heading.position.set(0, 2.15, 0.2);
+  heading.scale.set(2, 0.34, 1);
+  group.add(heading);
 
-  const desc = createTextSprite(`${info.atomsPerCell} 个原子/晶胞`, '#dbe7ff', 26);
-  desc.position.set(0, -2.15, 0.72);
-  desc.scale.set(1.2, 0.3, 1);
-  group.add(desc);
+  const contributions = hcpDensityContributions();
+  const labels = ['角点 12×1/6 = 2', '底面心 2×1/2 = 1', '柱内 3×1 = 3'];
+  const colors = [color, '#7dd0ff', '#fff65c'];
+  contributions.forEach((contribution, index) => {
+    const x = (index - 1) * 1.7;
+    const marker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 24, 16),
+      new THREE.MeshPhysicalMaterial({ color: colors[index], emissive: colors[index], emissiveIntensity: 0.18, roughness: 0.3 }),
+    );
+    marker.position.set(x, -2.05, 0);
+    group.add(marker);
+    const label = createOverlayTextSprite(labels[index], colors[index], 23);
+    label.position.set(x, -2.42, 0);
+    label.scale.set(1.08, 0.27, 1);
+    group.add(label);
+    marker.userData.effectiveAtoms = contribution.effective;
+  });
+
 }
 
 function addSectionPlane(group: THREE.Group, crystal: CrystalType) {
-  const geometry = crystal === 'HCP' ? new THREE.CircleGeometry(hcpGeometry.a, 6) : new THREE.PlaneGeometry(3.5, 3.5);
+  const geometry = crystal === 'HCP'
+    ? new THREE.PlaneGeometry(hcpGeometry.c * 1.2, hcpGeometry.a * 2.15)
+    : new THREE.PlaneGeometry(cellScale * 1.15, cellScale * 1.15);
   const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: '#8ceaff', transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false }));
-  mesh.rotation.set(crystal === 'HCP' ? 0 : Math.PI / 4, 0.32, crystal === 'HCP' ? Math.PI / 6 : -0.32);
+  mesh.rotation.y = Math.PI / 2;
   group.add(mesh);
 }
 
@@ -1300,6 +1379,12 @@ function createTextSprite(text: string, color = '#ffffff', size = 36) {
   texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
   sprite.scale.set((canvas.width / canvas.height) * 0.3, 0.3, 1);
+  return sprite;
+}
+
+function createOverlayTextSprite(text: string, color = '#ffffff', size = 36) {
+  const sprite = createTextSprite(text, color, size);
+  sprite.renderOrder = 30;
   return sprite;
 }
 

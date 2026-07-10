@@ -10,7 +10,15 @@ import {
   getGapPositions,
   polyhedronEdges,
 } from './CrystalCanvas';
-import { hcpGeometry, latticeGeometry, type CrystalType } from '../data/latticeGeometry';
+import {
+  densityCellClippingPlaneSpecs,
+  hcpCellAtoms,
+  hcpDensityContributions,
+  hcpGeometry,
+  latticeGeometry,
+  sectionClippingPlaneSpec,
+  type CrystalType,
+} from '../data/latticeGeometry';
 
 function uniquePositions(points: THREE.Vector3[]) {
   return new Map(points.map((point) => [point.toArray().map((value) => value.toFixed(6)).join(','), point])).values();
@@ -132,5 +140,42 @@ describe('carbon status copy', () => {
     const status = carbonStatus('HCP', true, false, 0);
     expect(status.text).toContain('八面体间隙');
     expect(status.text).toContain('碳嵌入实验未开放');
+  });
+});
+
+describe('section and density clipping geometry', () => {
+  it('defines a half-cell section plane through the crystal origin', () => {
+    const plane = sectionClippingPlaneSpec();
+    expect(plane.normal).toEqual([1, 0, 0]);
+    expect(plane.constant).toBe(0);
+  });
+
+  it.each([
+    ['FCC', 6],
+    ['BCC', 6],
+    ['HCP', 8],
+  ] as const)('%s density cell uses %i clipping boundaries that retain the origin', (crystal, count) => {
+    const planes = densityCellClippingPlaneSpecs(crystal);
+    expect(planes).toHaveLength(count);
+    planes.forEach(({ normal, constant }) => {
+      expect(normal[0] * 0 + normal[1] * 0 + normal[2] * 0 + constant).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  it('counts six effective atoms in the conventional HCP prism', () => {
+    const contributions = hcpDensityContributions();
+    expect(contributions.map(({ effective }) => effective)).toEqual([2, 1, 3]);
+    expect(contributions.reduce((sum, item) => sum + item.count * item.fraction, 0)).toBeCloseTo(6, 8);
+  });
+
+  it('keeps every conventional HCP atom center inside the hexagonal-prism boundaries', () => {
+    const planes = densityCellClippingPlaneSpecs('HCP');
+    const signedDistance = (position: readonly [number, number, number]) => planes.map(({ normal, constant }) => (
+      normal[0] * position[0] + normal[1] * position[1] + normal[2] * position[2] + constant
+    ));
+    hcpCellAtoms(true).forEach(({ position }) => {
+      expect(Math.min(...signedDistance(position))).toBeGreaterThanOrEqual(-1e-8);
+    });
+    expect(signedDistance([hcpGeometry.a * 2, 0, 0]).some((distance) => distance < 0)).toBe(true);
   });
 });
