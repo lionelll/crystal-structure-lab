@@ -25,7 +25,27 @@ interface Props {
   onCarbonGapType?: (type: 'octa' | 'tetra') => void;
 }
 
-type Vec3Tuple = [number, number, number];
+export type Vec3Tuple = [number, number, number];
+
+export interface Fcc111PackingSite {
+  position: Vec3Tuple;
+  role: 'corner' | 'face';
+}
+
+export function fcc111PackingSites(): Fcc111PackingSite[] {
+  return [
+    { position: [1, 0, 0], role: 'corner' },
+    { position: [0, 1, 0], role: 'corner' },
+    { position: [0, 0, 1], role: 'corner' },
+    { position: [0.5, 0.5, 0], role: 'face' },
+    { position: [0.5, 0, 0.5], role: 'face' },
+    { position: [0, 0.5, 0.5], role: 'face' },
+  ];
+}
+
+export function fcc110DirectionEndpoints(): [Vec3Tuple, Vec3Tuple] {
+  return [[0, 1, 0], [1, 0, 0]];
+}
 
 export interface RenderAtom {
   position: THREE.Vector3;
@@ -94,10 +114,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       const controls = controlsRef.current;
       if (!camera || !controls) return;
       const repeat = settings.showSupercell || activeModule === 'bravais' || activeModule === 'coordination' ? 2 : 1;
-      setDefaultCamera(camera, controls, crystal, repeat);
+      setDefaultCamera(camera, controls, crystal, repeat, activeModule);
       rootRef.current?.rotation.set(-0.12, 0.26, 0.03);
-      controls.target.set(0, 0, 0);
-      controls.update();
     },
     capture() {
       const renderer = rendererRef.current;
@@ -275,7 +293,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     const controls = controlsRef.current;
     if (!camera || !controls) return;
     const repeat = settings.showSupercell || activeModule === 'bravais' || activeModule === 'coordination' ? 2 : 1;
-    setDefaultCamera(camera, controls, crystal, repeat);
+    setDefaultCamera(camera, controls, crystal, repeat, activeModule);
   }, [activeModule, crystal, settings.showSupercell]);
 
   return (
@@ -293,6 +311,12 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         <Legend color="#f39a42" label="间隙位置（八面体）" />
         <Legend color="#aeb7c3" label="碳原子" />
       </div>
+      {crystal === 'FCC' && activeModule === 'packing' && (
+        <div className="packing-summary">
+          <strong>{'{111}'} · {'<110>'}</strong>
+          <span>面内原子：3 角点 + 3 面心</span>
+        </div>
+      )}
       <div className="crystal-caption">
         <strong>{crystals[crystal].type}</strong>
         <span>{crystals[crystal].title}</span>
@@ -555,7 +579,11 @@ function addPacking(group: THREE.Group, crystal: CrystalType) {
   geometry.computeVertexNormals();
   group.add(new THREE.Mesh(geometry, material));
 
-  const expandedOffset = crystal === 'HCP' ? new THREE.Vector3(1.45, 0.45, 0.7) : new THREE.Vector3(1.1, 0.72, 0.9);
+  const expandedOffset = crystal === 'HCP'
+    ? new THREE.Vector3(1.45, 0.45, 0.7)
+    : crystal === 'FCC'
+      ? new THREE.Vector3(2.2, 0.35, -1.8)
+      : new THREE.Vector3(1.1, 0.72, 0.9);
   const expanded = new THREE.Mesh(
     geometry.clone(),
     new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false, wireframe: true }),
@@ -583,15 +611,50 @@ function addPacking(group: THREE.Group, crystal: CrystalType) {
   });
 
   if (crystal === 'FCC') {
+    const planeNormal = new THREE.Vector3(1, 1, 1).normalize();
+    const ringRadius = latticeGeometry.FCC.atomRadiusOverA * latticeGeometry.FCC.worldA;
+    fcc111PackingSites().forEach((site) => {
+      const position = cubicPoint(site.position, 1);
+      const color = site.role === 'face' ? '#fff65c' : '#7dd0ff';
+      const opacity = site.role === 'face' ? 0.98 : 0.82;
+      [position, position.clone().add(expandedOffset)].forEach((ringPosition) => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(ringRadius, 0.026, 10, 64),
+          new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, fog: false }),
+        );
+        ring.position.copy(ringPosition).addScaledVector(planeNormal, 0.012);
+        ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), planeNormal);
+        ring.renderOrder = 8;
+        group.add(ring);
+      });
+    });
+
     for (let i = 0; i < vertices.length; i++) {
       const a = vertices[i], b = vertices[(i + 1) % vertices.length];
       const tubePath = new THREE.LineCurve3(a, b);
       const tubeGeo = new THREE.TubeGeometry(tubePath, 8, 0.04, 8, false);
       group.add(new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: dirColor })));
     }
-    const arrowDir = new THREE.Vector3(1, -1, 0).normalize();
-    const arrowOrigin = centroid.clone().add(arrowDir.clone().multiplyScalar(-0.95));
-    group.add(new THREE.ArrowHelper(arrowDir, arrowOrigin, 2.15, new THREE.Color(dirColor), 0.28, 0.16));
+    const [startFractional, endFractional] = fcc110DirectionEndpoints();
+    const start = cubicPoint(startFractional, 1);
+    const end = cubicPoint(endFractional, 1);
+    const arrowShaft = new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.LineCurve3(start, end), 12, 0.045, 10, false),
+      new THREE.MeshBasicMaterial({ color: dirColor, transparent: true, opacity: 1, depthTest: false, fog: false }),
+    );
+    arrowShaft.renderOrder = 20;
+    group.add(arrowShaft);
+    const arrow = new THREE.ArrowHelper(end.clone().sub(start).normalize(), start, start.distanceTo(end), new THREE.Color(dirColor), 0.28, 0.16);
+    arrow.traverse((object) => {
+      const material = (object as THREE.Mesh).material as THREE.Material | undefined;
+      if (material) {
+        material.depthTest = false;
+        material.transparent = true;
+        if ('fog' in material) material.fog = false;
+      }
+      object.renderOrder = 20;
+    });
+    group.add(arrow);
   } else if (crystal === 'BCC') {
     const start = cubicPoint([0, 0, 0], 1);
     const end = cubicPoint([1, 1, 1], 1);
@@ -608,10 +671,12 @@ function addPacking(group: THREE.Group, crystal: CrystalType) {
     group.add(new THREE.ArrowHelper(end.clone().sub(start).normalize(), start, start.distanceTo(end), new THREE.Color(dirColor), 0.28, 0.16));
   }
 
-  const label = createTextSprite(`${crystals[crystal].densePlane} / ${crystals[crystal].denseDirection}`, '#ffffff', 32);
-  label.position.set(0, 1.75, 1.65);
-  label.scale.set(1.35, 0.38, 1);
-  group.add(label);
+  if (crystal !== 'FCC') {
+    const label = createTextSprite(`${crystals[crystal].densePlane} / ${crystals[crystal].denseDirection}`, '#ffffff', 32);
+    label.position.set(0, 1.75, 1.65);
+    label.scale.set(1.35, 0.38, 1);
+    group.add(label);
+  }
 
   const unfold = createTextSprite('剖面平移展开', '#dbe7ff', 28);
   unfold.position.copy(expandedCentroid.clone().add(new THREE.Vector3(0, 0.42, 0)));
@@ -944,7 +1009,7 @@ function addCarbon(group: THREE.Group, crystal: CrystalType, inserted: boolean, 
   }
 }
 
-function carbonStatus(crystal: CrystalType, inserted: boolean, isTetra: boolean, localIndex: number) {
+export function carbonStatus(crystal: CrystalType, inserted: boolean, isTetra: boolean, localIndex: number) {
   if (!inserted) {
     return { text: '点击间隙放入 C 原子（橙色=八面体，绿色=四面体）', color: '#f5c38a' };
   }
@@ -956,6 +1021,14 @@ function carbonStatus(crystal: CrystalType, inserted: boolean, isTetra: boolean,
   }
   if (crystal === 'BCC') {
     return { text: 'BCC 八面体占位更稳定，并沿 <100> 引发 BCT 畸变', color: '#7dd0ff' };
+  }
+  if (crystal === 'HCP') {
+    const gapKind = isTetra ? 'tetra' : 'octa';
+    const gapName = isTetra ? '四面体间隙' : '八面体间隙';
+    return {
+      text: `HCP ${gapName} ${getGapLabel(crystal, gapKind, localIndex)}；仅作结构示意，碳嵌入实验未开放`,
+      color: isTetra ? '#7de3a0' : '#f5c38a',
+    };
   }
   return { text: `C -> 八面体间隙 ${getGapLabel(crystal, 'octa', localIndex)}`, color: '#7dd0ff' };
 }
@@ -1230,12 +1303,16 @@ function createTextSprite(text: string, color = '#ffffff', size = 36) {
   return sprite;
 }
 
-function setDefaultCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, crystal: CrystalType, repeat: number) {
-  const distance = crystal === 'HCP'
+function setDefaultCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, crystal: CrystalType, repeat: number, activeModule: ModuleId) {
+  const baseDistance = crystal === 'HCP'
     ? (repeat > 1 ? 13.2 : 9.2)
     : (repeat > 1 ? 10.8 : 8.1);
-  camera.position.set(distance * 0.56, distance * 0.48, distance * 0.67);
-  controls.target.set(0, 0, 0);
+  const distance = crystal === 'FCC' && activeModule === 'packing' ? 10.5 : baseDistance;
+  const target = crystal === 'FCC' && activeModule === 'packing'
+    ? new THREE.Vector3(0.55, 0.08, -0.42)
+    : new THREE.Vector3(0, 0, 0);
+  camera.position.set(target.x + distance * 0.56, target.y + distance * 0.48, target.z + distance * 0.67);
+  controls.target.copy(target);
   controls.update();
 }
 

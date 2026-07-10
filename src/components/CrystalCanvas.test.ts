@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
+  carbonStatus,
   coordinationShell,
   createAtoms,
+  fcc110DirectionEndpoints,
+  fcc111PackingSites,
   findSurroundingAtoms,
   getGapPositions,
   polyhedronEdges,
@@ -95,5 +98,39 @@ describe('coordination shells', () => {
     expect(shell?.nearest).toHaveLength(count);
     const distances = shell!.nearest.map((neighbor) => neighbor.distance);
     expect(Math.max(...distances) - Math.min(...distances)).toBeLessThan(1e-5);
+  });
+});
+
+describe('packing-plane teaching geometry', () => {
+  it('defines three corners and three face centers on FCC {111}', () => {
+    const sites = fcc111PackingSites();
+    expect(sites).toHaveLength(6);
+    expect(sites.filter((site) => site.role === 'corner')).toHaveLength(3);
+    expect(sites.filter((site) => site.role === 'face')).toHaveLength(3);
+    sites.forEach(({ position }) => {
+      expect(position[0] + position[1] + position[2]).toBeCloseTo(1, 8);
+    });
+  });
+
+  it('runs the FCC <110> arrow through a {111} face-center atom', () => {
+    const [start, end] = fcc110DirectionEndpoints();
+    const midpoint = start.map((value, index) => (value + end[index]) / 2) as [number, number, number];
+    expect(midpoint).toEqual([0.5, 0.5, 0]);
+    expect(fcc111PackingSites()).toContainEqual({ position: midpoint, role: 'face' });
+  });
+});
+
+describe('carbon status copy', () => {
+  it('describes an HCP tetrahedral site without falling back to octahedral copy', () => {
+    const status = carbonStatus('HCP', true, true, 0);
+    expect(status.text).toContain('四面体间隙');
+    expect(status.text).not.toContain('八面体间隙');
+    expect(status.text).toContain('碳嵌入实验未开放');
+  });
+
+  it('describes an HCP octahedral site and its disabled experiment scope', () => {
+    const status = carbonStatus('HCP', true, false, 0);
+    expect(status.text).toContain('八面体间隙');
+    expect(status.text).toContain('碳嵌入实验未开放');
   });
 });
