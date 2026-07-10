@@ -1,0 +1,115 @@
+name: Deploy tagged release to AWS
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: material-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test, build, and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag belongs to release
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must use SemVer format vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          git fetch origin release:refs/remotes/origin/release
+          TAG_COMMIT="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/release; then
+            echo "The tagged commit is not contained in origin/release."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production site
+        run: npm run build
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.AWS_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/material_deploy"
+          chmod 600 "$HOME/.ssh/material_deploy"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Package and upload build
+        env:
+          AWS_HOST: ${{ vars.AWS_HOST }}
+          AWS_USER: ${{ vars.AWS_USER }}
+        run: |
+          test -n "$AWS_HOST"
+          test -n "$AWS_USER"
+          ARCHIVE="material-dist-${GITHUB_REF_NAME}.tgz"
+          printf '{"tag":"%s","commit":"%s"}\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" > dist/release.json
+          tar -C dist -czf "/tmp/$ARCHIVE" .
+          scp -i "$HOME/.ssh/material_deploy" "/tmp/$ARCHIVE" "$AWS_USER@$AWS_HOST:/tmp/$ARCHIVE"
+
+      - name: Deploy on AWS
+        env:
+          AWS_HOST: ${{ vars.AWS_HOST }}
+          AWS_USER: ${{ vars.AWS_USER }}
+          AWS_DEPLOY_PATH: ${{ vars.AWS_DEPLOY_PATH }}
+        run: |
+          test -n "$AWS_HOST"
+          test -n "$AWS_USER"
+          test -n "$AWS_DEPLOY_PATH"
+          ssh -i "$HOME/.ssh/material_deploy" "$AWS_USER@$AWS_HOST" \
+            "TAG_NAME='$GITHUB_REF_NAME' DEPLOY_PATH='$AWS_DEPLOY_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          archive="/tmp/material-dist-${TAG_NAME}.tgz"
+          release_dir="/tmp/material-release-${TAG_NAME}"
+          backup="/tmp/material-backup-before-${TAG_NAME}.tgz"
+
+          test -f "$archive"
+          test -d "$DEPLOY_PATH"
+          mkdir -p "$release_dir"
+          tar -xzf "$archive" -C "$release_dir"
+          test -f "$release_dir/index.html"
+
+          sudo tar -C "$DEPLOY_PATH" -czf "$backup" .
+          sudo rsync -a --delete --chown=www-data:www-data "$release_dir/" "$DEPLOY_PATH/"
+          test -f "$DEPLOY_PATH/index.html"
+          REMOTE
+
+      - name: Verify production site
+        env:
+          AWS_SITE_URL: ${{ vars.AWS_SITE_URL }}
+        run: |
+          test -n "$AWS_SITE_URL"
+          RELEASE_INFO="$(curl --fail --silent --show-error --retry 5 --retry-delay 3 \
+            "$AWS_SITE_URL/release.json?release=$GITHUB_REF_NAME")"
+          grep -Fq "\"tag\":\"$GITHUB_REF_NAME\"" <<< "$RELEASE_INFO"
+          grep -Fq "\"commit\":\"$GITHUB_SHA\"" <<< "$RELEASE_INFO"
