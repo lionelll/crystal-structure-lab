@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
+  atomRenderRadius,
+  atomVisualStyle,
   carbonStatus,
   coordinationShell,
   createAtoms,
@@ -47,6 +49,32 @@ describe('rigid-sphere geometry', () => {
     const a = new THREE.Vector3(...hcpGeometry.tileVectorA);
     const b = new THREE.Vector3(...hcpGeometry.tileVectorB);
     expect(a.angleTo(b)).toBeCloseTo((2 * Math.PI) / 3, 8);
+  });
+});
+
+describe('reference atom visuals', () => {
+  it.each([
+    ['FCC', 'schematic'], ['BCC', 'schematic'], ['HCP', 'schematic'],
+    ['FCC', 'ball-stick'], ['BCC', 'ball-stick'], ['HCP', 'ball-stick'],
+  ] as const)('%s %s atoms use the reference radius ratio', (crystal, modelStyle) => {
+    expect(atomRenderRadius(crystal, modelStyle)).toBeCloseTo(
+      atomVisualStyle.schematicRadiusOverA * latticeGeometry[crystal].worldA,
+      8,
+    );
+  });
+
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s rigid atoms retain the crystallographic contact radius', (crystal) => {
+    expect(atomRenderRadius(crystal, 'rigid')).toBeCloseTo(
+      latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA,
+      8,
+    );
+  });
+
+  it('matches the reference cyan Phong appearance', () => {
+    expect(atomVisualStyle.baseColor).toBe('#38bdf8');
+    expect(atomVisualStyle.specularColor).toBe('#888888');
+    expect(atomVisualStyle.shininess).toBe(80);
+    expect(atomVisualStyle.schematicRadiusOverA).toBeCloseTo(0.5 / 3.6, 8);
   });
 });
 

@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { crystals, type CrystalType, type DisplaySettings, type ModuleId } from '../data/crystals';
+import { crystals, type CrystalType, type DisplaySettings, type ModelStyle, type ModuleId } from '../data/crystals';
 import {
   densityCellClippingPlaneSpecs,
   hcpCellAtoms,
@@ -63,9 +63,16 @@ interface DynamicClippingPlane {
   world: THREE.Plane;
 }
 
-const atomColor = new THREE.Color('#777cff');
+export const atomVisualStyle = {
+  baseColor: '#38bdf8',
+  specularColor: '#888888',
+  shininess: 80,
+  schematicRadiusOverA: 0.5 / 3.6,
+} as const;
+
+const atomColor = new THREE.Color(atomVisualStyle.baseColor);
 const highlightColor = new THREE.Color('#fff65c');
-const faceColor = new THREE.Color('#7b82ff');
+const faceColor = new THREE.Color(atomVisualStyle.baseColor);
 const gapTetraColor = new THREE.Color('#45d27a');
 const gapOctaColor = new THREE.Color('#f39a42');
 const carbonColor = new THREE.Color('#aeb7c3');
@@ -83,6 +90,34 @@ const hcpTop = hcpGeometry.ring.map(([x, y]) => new THREE.Vector3(x, y, hcpGeome
 const hcpBottomCenter = new THREE.Vector3(0, 0, -hcpGeometry.c / 2);
 const hcpTopCenter = new THREE.Vector3(0, 0, hcpGeometry.c / 2);
 const hcpMid = hcpGeometry.upperHoles.map(([x, y]) => new THREE.Vector3(x, y, 0));
+
+export function atomRenderRadius(crystal: CrystalType, modelStyle: ModelStyle) {
+  const geometry = latticeGeometry[crystal];
+  return (modelStyle === 'rigid' ? geometry.atomRadiusOverA : atomVisualStyle.schematicRadiusOverA) * geometry.worldA;
+}
+
+interface AtomMaterialOptions {
+  opacity?: number;
+  emissive?: THREE.ColorRepresentation;
+  emissiveIntensity?: number;
+  clippingPlanes?: THREE.Plane[];
+  side?: THREE.Side;
+}
+
+function createAtomMaterial(color: THREE.ColorRepresentation, options: AtomMaterialOptions = {}) {
+  const opacity = options.opacity ?? 1;
+  return new THREE.MeshPhongMaterial({
+    color,
+    specular: atomVisualStyle.specularColor,
+    shininess: atomVisualStyle.shininess,
+    emissive: options.emissive ?? '#000000',
+    emissiveIntensity: options.emissiveIntensity ?? 1,
+    transparent: opacity < 1,
+    opacity,
+    clippingPlanes: options.clippingPlanes,
+    side: options.side ?? THREE.FrontSide,
+  });
+}
 
 export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function CrystalCanvas({ crystal, activeModule, settings, carbonInserted, onCarbonChange, onCarbonGapType }, ref) {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -142,7 +177,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     if (!mount) return;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x07111d, 8, 16);
+    scene.fog = new THREE.Fog(0x05070c, 8, 16);
     const camera = new THREE.PerspectiveCamera(42, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.position.set(4.5, 3.9, 5.4);
     cameraRef.current = camera;
@@ -150,7 +185,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
-    renderer.setClearColor(0x07111d, 1);
+    renderer.setClearColor(0x05070c, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.localClippingEnabled = true;
     mount.appendChild(renderer.domElement);
@@ -167,13 +202,13 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     rootRef.current = root;
     scene.add(root);
 
-    const ambient = new THREE.AmbientLight(0xc7d6ff, 1.55);
+    const ambient = new THREE.AmbientLight(0x708090, 1.2);
     scene.add(ambient);
-    const key = new THREE.DirectionalLight(0xffffff, 2.3);
-    key.position.set(4, 7, 5);
+    const key = new THREE.DirectionalLight(0xffffff, 2.1);
+    key.position.set(5, 10, 7);
     scene.add(key);
-    const rim = new THREE.PointLight(0x2aa7ff, 3.5, 12);
-    rim.position.set(-3, 1.2, 3);
+    const rim = new THREE.DirectionalLight(0x38bdf8, 0.9);
+    rim.position.set(-5, -5, -5);
     scene.add(rim);
 
     const bg = createBackgroundPlane();
@@ -278,10 +313,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     const hcpBravaisStep = crystal === 'HCP' && activeModule === 'bravais' ? bravaisStep : -1;
     const isDensity = activeModule === 'density';
     const atoms = createAtoms(crystal, repeat, settings.exploded && !isDensity, activeModule, hcpBravaisStep);
-    const geometry = latticeGeometry[crystal];
-    const radius = settings.modelStyle === 'rigid'
-      ? geometry.atomRadiusOverA * geometry.worldA
-      : 0.15 * geometry.worldA;
+    const radius = atomRenderRadius(crystal, settings.modelStyle);
     const focusTarget = activeModule === 'coordination' && coordinationTarget
       ? new THREE.Vector3(...coordinationTarget)
       : new THREE.Vector3(0, 0, 0);
@@ -339,7 +371,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         <span><MouseGlyph />右键：平移</span>
       </div>
       <div className="legend-box">
-        <Legend color="#777cff" label="基体原子" />
+        <Legend color={atomVisualStyle.baseColor} label="基体原子" />
         <Legend color="#fff65c" label="选中原子" />
         <Legend color="#45d27a" label="间隙位置（四面体）" />
         <Legend color="#f39a42" label="间隙位置（八面体）" />
@@ -461,21 +493,16 @@ function markCoordinationFocus(atoms: RenderAtom[], target: THREE.Vector3) {
 }
 
 function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, showLabels: boolean, moduleId: ModuleId, pickables?: THREE.Object3D[], bravaisRepeat = 0, clippingPlanes: THREE.Plane[] = []) {
-  const sphere = new THREE.SphereGeometry(radius, 48, 32);
+  const sphere = new THREE.SphereGeometry(radius, 32, 32);
   const totalPerCell = atoms.length / Math.max(1, bravaisRepeat ** 3 || 1);
   atoms.forEach((atom, index) => {
     let color = atom.kind === 'face' ? faceColor : atomColor;
     if (atom.highlight) color = highlightColor;
     const isFirstCell = bravaisRepeat > 0 && index < totalPerCell;
     const atomOpacity = bravaisRepeat > 0 && !isFirstCell ? 0.15 : opacity;
-    const material = new THREE.MeshPhysicalMaterial({
-      color,
-      emissive: atom.highlight ? '#665900' : '#111847',
-      emissiveIntensity: atom.highlight ? 0.9 : 0.24,
-      metalness: 0.05,
-      roughness: 0.28,
-      transmission: 0,
-      transparent: true,
+    const material = createAtomMaterial(color, {
+      emissive: atom.highlight ? '#665900' : '#000000',
+      emissiveIntensity: atom.highlight ? 0.9 : 1,
       opacity: atomOpacity,
       clippingPlanes,
       side: clippingPlanes.length > 0 ? THREE.DoubleSide : THREE.FrontSide,
@@ -1103,16 +1130,9 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType, sectionSpe
   const accentColor = crystal === 'BCC' ? '#f28a31' : '#2aa7ff';
   base.forEach((atom) => {
     const pos = cubicPoint(atom.p, 1);
-    const mat = new THREE.MeshPhysicalMaterial({
-      color: accentColor,
-      emissive: accentColor,
-      emissiveIntensity: 0.15,
-      metalness: 0.05,
-      roughness: 0.28,
-      transparent: true,
+    const mat = createAtomMaterial(accentColor, {
       opacity: 0.82,
       clippingPlanes: clipPlanes,
-      clipIntersection: false,
       side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(sphere, mat);
@@ -1137,14 +1157,14 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType, sectionSpe
 
   const assembledSphere = new THREE.Mesh(
     new THREE.SphereGeometry(radius * 0.45, 48, 32),
-    new THREE.MeshPhysicalMaterial({ color: accentColor, emissive: accentColor, emissiveIntensity: 0.2, metalness: 0.05, roughness: 0.28, transparent: true, opacity: 0.85 }),
+    createAtomMaterial(accentColor, { opacity: 0.85 }),
   );
   assembledSphere.position.set(0, assemblyY, 0);
   group.add(assembledSphere);
 
   const cornerPiece = new THREE.Mesh(
     new THREE.SphereGeometry(radius * 0.22, 24, 16, 0, Math.PI / 2, 0, Math.PI / 2),
-    new THREE.MeshPhysicalMaterial({ color: accentColor, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+    createAtomMaterial(accentColor, { opacity: 0.7, side: THREE.DoubleSide }),
   );
   cornerPiece.position.set(-1.6, assemblyY, 0);
   group.add(cornerPiece);
@@ -1156,7 +1176,7 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType, sectionSpe
   if (crystal === 'FCC') {
     const facePiece = new THREE.Mesh(
       new THREE.SphereGeometry(radius * 0.3, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshPhysicalMaterial({ color: faceColor, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+      createAtomMaterial(faceColor, { opacity: 0.7, side: THREE.DoubleSide }),
     );
     facePiece.position.set(1.6, assemblyY, 0);
     group.add(facePiece);
@@ -1167,7 +1187,7 @@ function addDensityAssembly(group: THREE.Group, crystal: CrystalType, sectionSpe
   } else if (crystal === 'BCC') {
     const centerPieceBcc = new THREE.Mesh(
       new THREE.SphereGeometry(radius * 0.32, 32, 24),
-      new THREE.MeshPhysicalMaterial({ color: accentColor, emissive: accentColor, emissiveIntensity: 0.15, transparent: true, opacity: 0.75 }),
+      createAtomMaterial(accentColor, { opacity: 0.75 }),
     );
     centerPieceBcc.position.set(1.6, assemblyY, 0);
     group.add(centerPieceBcc);
@@ -1205,13 +1225,7 @@ function addDensityHcp(group: THREE.Group, crystal: CrystalType, clippingPlanes:
     const siteColor = site.kind === 'base' ? color : site.kind === 'face' ? '#7dd0ff' : '#fff65c';
     const mesh = new THREE.Mesh(
       sphere,
-      new THREE.MeshPhysicalMaterial({
-        color: siteColor,
-        emissive: siteColor,
-        emissiveIntensity: 0.14,
-        metalness: 0.05,
-        roughness: 0.3,
-        transparent: true,
+      createAtomMaterial(siteColor, {
         opacity: 0.84,
         clippingPlanes,
         side: THREE.DoubleSide,
@@ -1234,7 +1248,7 @@ function addDensityHcp(group: THREE.Group, crystal: CrystalType, clippingPlanes:
     const x = (index - 1) * 1.7;
     const marker = new THREE.Mesh(
       new THREE.SphereGeometry(0.2, 24, 16),
-      new THREE.MeshPhysicalMaterial({ color: colors[index], emissive: colors[index], emissiveIntensity: 0.18, roughness: 0.3 }),
+      createAtomMaterial(colors[index]),
     );
     marker.position.set(x, -2.05, 0);
     group.add(marker);

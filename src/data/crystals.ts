@@ -11,7 +11,7 @@ export type ModuleId =
   | 'octa'
   | 'carbon';
 
-export type ModelStyle = 'rigid' | 'ball-stick';
+export type ModelStyle = 'rigid' | 'schematic' | 'ball-stick';
 
 export interface DisplaySettings {
   modelStyle: ModelStyle;
@@ -78,9 +78,9 @@ export const modules: ModuleItem[] = [
 export const moduleSpecs: Record<ModuleId, ModuleSpec> = {
   cell: {
     goal: '建立 FCC / BCC / HCP 的基础晶胞空间概念。',
-    interaction: '切换刚性球模型与球棍模型，显示或隐藏晶胞框线、坐标轴和原子编号。',
+    interaction: '切换参考球模型、刚性球模型与球棍模型，显示或隐藏晶胞框线、坐标轴和原子编号。',
     logic: '以 a = 1.0 为统一晶胞尺度，立方晶胞原点位于左下前角，HCP 使用理想 c/a 比展示上下密排层。',
-    visual: '基体原子用蓝紫色球体，选中或示范原子用黄色高亮，框线与坐标轴保持低干扰透明显示。',
+    visual: '基体原子用亮青色高光球体，选中或示范原子用黄色高亮，框线与坐标轴保持低干扰透明显示。',
   },
   bravais: {
     goal: '理解空间点阵的平移重复，而不是只看单个晶胞。',
@@ -202,10 +202,10 @@ export const apfBars = [
 ];
 
 export const defaultSettings: DisplaySettings = {
-  modelStyle: 'rigid',
+  modelStyle: 'schematic',
   showCell: true,
   showAxes: true,
-  showLabels: true,
+  showLabels: false,
   showSupercell: false,
   atomOpacity: 0.9,
   speed: 1,

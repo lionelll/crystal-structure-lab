@@ -64,7 +64,8 @@ export function ControlPanel({ activeModule, crystal, settings, carbonInserted, 
           <div className="readonly-chip">{info.title}</div>
 
           <label className="field-label">模型类型</label>
-          <div className="segmented compact" role="group" aria-label="模型类型">
+          <div className="segmented compact three" role="group" aria-label="模型类型">
+            <button className={settings.modelStyle === 'schematic' ? 'active' : ''} type="button" onClick={() => setModel('schematic')}>参考球模型</button>
             <button className={settings.modelStyle === 'rigid' ? 'active' : ''} type="button" onClick={() => setModel('rigid')}>刚性球模型</button>
             <button className={settings.modelStyle === 'ball-stick' ? 'active' : ''} type="button" onClick={() => setModel('ball-stick')}>球棍模型</button>
           </div>
