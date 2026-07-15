@@ -288,16 +288,14 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       }
       const anim = coordAnimRef.current;
       if (anim.objects.length > 0) {
-        const elapsed = (performance.now() - anim.startTime) / 1000;
+        // 动画速度滑杆同样作用于配位数逐个点亮；下限 0.25 防止 0x 时对象卡在不可见状态
+        const speedFactor = Math.max(0.25, s.speed);
+        const elapsed = ((performance.now() - anim.startTime) / 1000) * speedFactor;
         anim.objects.forEach((obj, i) => {
           const delay = i * 0.12;
           const t = Math.max(0, Math.min(1, (elapsed - delay) / 0.3));
           const eased = t * (2 - t);
           obj.scale.setScalar(eased);
-          if ((obj as THREE.Mesh).material) {
-            const mat = (obj as THREE.Mesh).material as THREE.Material;
-            if ('opacity' in mat) (mat as THREE.MeshBasicMaterial).opacity = eased * 0.48;
-          }
         });
       }
       const pulse = centerPulseRef.current;
@@ -341,6 +339,11 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       : new THREE.Vector3(0, 0, 0);
     if (activeModule === 'coordination') markCoordinationFocus(atoms, focusTarget);
 
+    const coordShell = activeModule === 'coordination' ? coordinationShell(atoms, crystal, focusTarget) : null;
+    const coordFocusKeys = coordShell
+      ? new Set([positionKey(coordShell.center), ...coordShell.nearest.map((item) => positionKey(item.atom.position))])
+      : undefined;
+
     const sectionSpec = settings.sectionView ? sectionClippingPlaneSpec() : null;
     const sectionPlanes = !isDensity && sectionSpec
       ? createDynamicClippingPlanes(root, [sectionSpec], dynamicClippingRef.current)
@@ -358,12 +361,13 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         pickablesRef.current,
         activeModule === 'bravais' ? repeat : 0,
         sectionPlanes,
+        coordFocusKeys,
       );
     }
     if (settings.showAxes) addAxes(root);
     if (activeModule === 'packing') addPacking(root, crystal);
-    if (activeModule === 'coordination') {
-      addCoordination(root, atoms, crystal, focusTarget, coordAnimRef, centerPulseRef);
+    if (coordShell) {
+      addCoordination(root, coordShell, coordAnimRef, centerPulseRef);
     } else {
       coordAnimRef.current = { objects: [], startTime: 0 };
       centerPulseRef.current = null;
@@ -414,6 +418,18 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
           ? '真实截面已开启：半透明平面为裁切面，仅保留晶体局部 x ≥ 0 一侧。'
           : getCanvasInstruction(activeModule)}
       </div>
+      {activeModule === 'carbon' && (() => {
+        const octaCount = getGapPositions(crystal, 'octa').length;
+        const total = octaCount + getGapPositions(crystal, 'tetra').length;
+        const index = total > 0 ? Math.min(selectedGapIndex, total - 1) : 0;
+        const isTetra = index >= octaCount;
+        const status = carbonStatus(crystal, carbonInserted, isTetra, isTetra ? index - octaCount : index);
+        return (
+          <div className="canvas-status" style={{ color: status.color, borderColor: status.color }}>
+            {status.text}
+          </div>
+        );
+      })()}
       {crystal === 'HCP' && activeModule === 'bravais' && (
         <div className="bravais-stepper">
           <button type="button" disabled={bravaisStep <= 0} onClick={() => setBravaisStep((s) => s - 1)}>◀ 上一步</button>
@@ -514,14 +530,16 @@ function markCoordinationFocus(atoms: RenderAtom[], target: THREE.Vector3) {
   if (closest >= 0) atoms[closest].highlight = true;
 }
 
-function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, showLabels: boolean, moduleId: ModuleId, pickables?: THREE.Object3D[], bravaisRepeat = 0, clippingPlanes: THREE.Plane[] = []) {
+function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, showLabels: boolean, moduleId: ModuleId, pickables?: THREE.Object3D[], bravaisRepeat = 0, clippingPlanes: THREE.Plane[] = [], focusKeys?: Set<string>) {
   const sphere = new THREE.SphereGeometry(radius, 32, 32);
   const totalPerCell = atoms.length / Math.max(1, bravaisRepeat ** 3 || 1);
   atoms.forEach((atom, index) => {
     let color = atom.kind === 'face' ? faceColor : atomColor;
     if (atom.highlight) color = highlightColor;
     const isFirstCell = bravaisRepeat > 0 && index < totalPerCell;
-    const atomOpacity = bravaisRepeat > 0 && !isFirstCell ? 0.15 : opacity;
+    const dimmed = focusKeys ? !focusKeys.has(positionKey(atom.position)) : false;
+    let atomOpacity = bravaisRepeat > 0 && !isFirstCell ? 0.15 : opacity;
+    if (dimmed) atomOpacity = Math.min(atomOpacity, 0.16);
     const material = createAtomMaterial(color, {
       emissive: atom.highlight ? '#665900' : atomVisualStyle.bodyLiftColor,
       emissiveIntensity: atom.highlight ? 0.9 : atomVisualStyle.bodyLiftIntensity,
@@ -539,8 +557,8 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
     }
     group.add(mesh);
 
-    if (atom.highlight || (moduleId === 'coordination' && index % 2 === 0)) {
-      const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.18, 32, 16), new THREE.MeshBasicMaterial({ color: atom.highlight ? '#fff65c' : '#2b87ff', transparent: true, opacity: atom.highlight ? 0.18 : 0.06, clippingPlanes }));
+    if (atom.highlight || (moduleId === 'coordination' && !dimmed)) {
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.18, 32, 16), new THREE.MeshBasicMaterial({ color: atom.highlight ? '#fff65c' : '#2b87ff', transparent: true, opacity: atom.highlight ? 0.18 : 0.08, clippingPlanes }));
       halo.position.copy(atom.position);
       group.add(halo);
     }
@@ -844,11 +862,9 @@ export function coordinationShell(atoms: RenderAtom[], crystal: CrystalType, tar
   return { center, nearest };
 }
 
-function addCoordination(group: THREE.Group, atoms: RenderAtom[], crystal: CrystalType, target: THREE.Vector3, coordAnimRef: React.MutableRefObject<{ objects: THREE.Object3D[]; startTime: number }>, centerPulseRef: React.MutableRefObject<THREE.Mesh | null>) {
+function addCoordination(group: THREE.Group, shell: NonNullable<ReturnType<typeof coordinationShell>>, coordAnimRef: React.MutableRefObject<{ objects: THREE.Object3D[]; startTime: number }>, centerPulseRef: React.MutableRefObject<THREE.Mesh | null>) {
   coordAnimRef.current = { objects: [], startTime: performance.now() };
   centerPulseRef.current = null;
-  const shell = coordinationShell(atoms, crystal, target);
-  if (!shell) return;
   const { center, nearest } = shell;
 
   const pulseHalo = new THREE.Mesh(
@@ -876,26 +892,21 @@ function addCoordination(group: THREE.Group, atoms: RenderAtom[], crystal: Cryst
 
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([center, item.atom.position]),
-      new THREE.LineBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.48 }),
+      new THREE.LineBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.8 }),
     );
     neighborGroup.add(line);
-    const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.09, 20, 12), new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.48 }));
+    const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 12), new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.85 }));
     sphere.position.copy(item.atom.position.clone().lerp(center, 0.12));
     neighborGroup.add(sphere);
     const label = createTextSprite(String(index + 1), '#fff65c', 30);
     label.position.copy(item.atom.position.clone().add(new THREE.Vector3(0, 0.25, 0)));
-    label.scale.setScalar(0.28);
+    label.scale.setScalar(0.42);
     neighborGroup.add(label);
 
     group.add(neighborGroup);
     animObjects.push(neighborGroup);
   });
   coordAnimRef.current = { objects: animObjects, startTime: performance.now() };
-
-  const tip = createTextSprite('点击任意原子切换中心', '#dbe7ff', 28);
-  tip.position.copy(center.clone().add(new THREE.Vector3(0, 0.72, 0)));
-  tip.scale.set(1.22, 0.32, 1);
-  group.add(tip);
 }
 
 export function polyhedronEdges(vertices: THREE.Vector3[], center: THREE.Vector3, kind: 'tetra' | 'octa') {
@@ -1096,12 +1107,6 @@ function addCarbon(group: THREE.Group, crystal: CrystalType, inserted: boolean, 
   cLabel.position.copy(position.clone().add(new THREE.Vector3(0, 0.03, 0)));
   cLabel.scale.setScalar(0.36);
   group.add(cLabel);
-
-  const { text: statusText, color: statusColor } = carbonStatus(crystal, inserted, isTetra, localIndex);
-  const status = createTextSprite(statusText, statusColor, 28);
-  status.position.copy(target.clone().add(new THREE.Vector3(0, inserted ? 0.7 : 0.55, 0)));
-  status.scale.set(1.65, 0.34, 1);
-  group.add(status);
 
   if (!inserted) {
     group.add(new THREE.ArrowHelper(target.clone().sub(position).normalize(), position, Math.max(0.35, position.distanceTo(target) - 0.25), carbonColor, 0.22, 0.12));

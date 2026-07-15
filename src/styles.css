@@ -159,7 +159,8 @@ button { border: 0; color: inherit; cursor: pointer; }
 .bravais-stepper button:hover:not(:disabled) { background: rgba(21,136,255,.35); }
 .bravais-stepper button:disabled { opacity: 0.35; cursor: default; }
 .bravais-stepper span { color: #7dd0ff; font-size: 14px; font-weight: 700; white-space: nowrap; }
-.interaction-tip { position: absolute; left: 17px; bottom: 16px; max-width: min(520px, calc(100% - 390px)); padding: 8px 12px; border: 1px solid rgba(125,208,255,.24); border-radius: 999px; background: rgba(7,13,22,.62); color: #dce8f5; backdrop-filter: blur(8px); font-size: 13px; line-height: 1.35; }
+.interaction-tip { position: absolute; left: 17px; bottom: 16px; max-width: min(480px, calc(50% - 150px)); padding: 8px 12px; border: 1px solid rgba(125,208,255,.24); border-radius: 999px; background: rgba(7,13,22,.62); color: #dce8f5; backdrop-filter: blur(8px); font-size: 13px; line-height: 1.35; }
+.canvas-status { position: absolute; left: 17px; bottom: 66px; max-width: min(480px, calc(50% - 150px)); padding: 8px 12px; border: 1px solid rgba(125,208,255,.35); border-radius: 999px; background: rgba(7,13,22,.72); backdrop-filter: blur(8px); font-size: 13px; line-height: 1.35; font-weight: 600; }
 .status-strip { display: flex; align-items: center; gap: 18px; padding: 0 12px; color: #8fa1b5; font-size: 12px; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,12,.72); display: grid; place-items: center; z-index: 20; padding: 20px; }
 .help-modal { width: min(520px, 100%); padding-bottom: 16px; }
@@ -195,6 +196,7 @@ button { border: 0; color: inherit; cursor: pointer; }
   .legend-box span { min-width: 0; }
   .crystal-caption { bottom: 10px; max-width: calc(100% - 20px); white-space: nowrap; }
   .interaction-tip { left: 10px; right: 10px; bottom: 56px; max-width: none; border-radius: 8px; text-align: center; }
+  .canvas-status { left: 10px; right: 10px; bottom: 100px; max-width: none; border-radius: 8px; text-align: center; }
   .packing-summary { top: 142px; min-width: 210px; padding: 7px 10px; }
   .bravais-stepper { top: 142px; max-width: calc(100% - 20px); gap: 6px; padding: 7px 9px; }
   .bravais-stepper span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
