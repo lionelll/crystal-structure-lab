@@ -207,7 +207,7 @@ export const defaultSettings: DisplaySettings = {
   showAxes: true,
   showLabels: false,
   showSupercell: false,
-  atomOpacity: 0.9,
+  atomOpacity: 1,
   speed: 1,
   autoRotate: false,
   exploded: false,

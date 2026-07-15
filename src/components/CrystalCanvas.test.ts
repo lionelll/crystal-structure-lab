@@ -58,7 +58,9 @@ describe('reference atom visuals', () => {
     ['FCC', 'ball-stick'], ['BCC', 'ball-stick'], ['HCP', 'ball-stick'],
   ] as const)('%s %s atoms use the reference radius ratio', (crystal, modelStyle) => {
     expect(atomRenderRadius(crystal, modelStyle)).toBeCloseTo(
-      atomVisualStyle.schematicRadiusOverA * latticeGeometry[crystal].worldA,
+      (crystal === 'HCP'
+        ? atomVisualStyle.hcpSchematicRadiusOverA
+        : atomVisualStyle.cubicSchematicRadiusOverA) * latticeGeometry[crystal].worldA,
       8,
     );
   });
@@ -72,9 +74,12 @@ describe('reference atom visuals', () => {
 
   it('matches the reference cyan Phong appearance', () => {
     expect(atomVisualStyle.baseColor).toBe('#38bdf8');
-    expect(atomVisualStyle.specularColor).toBe('#888888');
-    expect(atomVisualStyle.shininess).toBe(80);
-    expect(atomVisualStyle.schematicRadiusOverA).toBeCloseTo(0.5 / 3.6, 8);
+    expect(atomVisualStyle.specularColor).toBe('#ffffff');
+    expect(atomVisualStyle.shininess).toBe(64);
+    expect(atomVisualStyle.bodyLiftColor).toBe('#052d3b');
+    expect(atomVisualStyle.bodyLiftIntensity).toBe(0.5);
+    expect(atomVisualStyle.cubicSchematicRadiusOverA).toBeCloseTo(0.5 / 3.6, 8);
+    expect(atomVisualStyle.hcpSchematicRadiusOverA).toBeCloseTo(0.5 / 1.8, 8);
   });
 });
 

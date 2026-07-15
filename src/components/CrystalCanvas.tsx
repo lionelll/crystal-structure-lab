@@ -65,9 +65,12 @@ interface DynamicClippingPlane {
 
 export const atomVisualStyle = {
   baseColor: '#38bdf8',
-  specularColor: '#888888',
-  shininess: 80,
-  schematicRadiusOverA: 0.5 / 3.6,
+  specularColor: '#ffffff',
+  shininess: 64,
+  bodyLiftColor: '#052d3b',
+  bodyLiftIntensity: 0.5,
+  cubicSchematicRadiusOverA: 0.5 / 3.6,
+  hcpSchematicRadiusOverA: 0.5 / 1.8,
 } as const;
 
 const atomColor = new THREE.Color(atomVisualStyle.baseColor);
@@ -93,7 +96,10 @@ const hcpMid = hcpGeometry.upperHoles.map(([x, y]) => new THREE.Vector3(x, y, 0)
 
 export function atomRenderRadius(crystal: CrystalType, modelStyle: ModelStyle) {
   const geometry = latticeGeometry[crystal];
-  return (modelStyle === 'rigid' ? geometry.atomRadiusOverA : atomVisualStyle.schematicRadiusOverA) * geometry.worldA;
+  const radiusOverA = crystal === 'HCP'
+    ? atomVisualStyle.hcpSchematicRadiusOverA
+    : atomVisualStyle.cubicSchematicRadiusOverA;
+  return (modelStyle === 'rigid' ? geometry.atomRadiusOverA : radiusOverA) * geometry.worldA;
 }
 
 interface AtomMaterialOptions {
@@ -202,12 +208,12 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     rootRef.current = root;
     scene.add(root);
 
-    const ambient = new THREE.AmbientLight(0x708090, 1.2);
+    const ambient = new THREE.AmbientLight(0x708090, 1.35);
     scene.add(ambient);
-    const key = new THREE.DirectionalLight(0xffffff, 2.1);
+    const key = new THREE.DirectionalLight(0xffffff, 3.4);
     key.position.set(5, 10, 7);
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0x38bdf8, 0.9);
+    const rim = new THREE.DirectionalLight(0x38bdf8, 0.75);
     rim.position.set(-5, -5, -5);
     scene.add(rim);
 
@@ -501,8 +507,8 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
     const isFirstCell = bravaisRepeat > 0 && index < totalPerCell;
     const atomOpacity = bravaisRepeat > 0 && !isFirstCell ? 0.15 : opacity;
     const material = createAtomMaterial(color, {
-      emissive: atom.highlight ? '#665900' : '#000000',
-      emissiveIntensity: atom.highlight ? 0.9 : 1,
+      emissive: atom.highlight ? '#665900' : atomVisualStyle.bodyLiftColor,
+      emissiveIntensity: atom.highlight ? 0.9 : atomVisualStyle.bodyLiftIntensity,
       opacity: atomOpacity,
       clippingPlanes,
       side: clippingPlanes.length > 0 ? THREE.DoubleSide : THREE.FrontSide,
@@ -1348,7 +1354,7 @@ function getGapLabel(crystal: CrystalType, kind: 'tetra' | 'octa', index: number
 
 function getCanvasInstruction(moduleId: ModuleId) {
   const copy: Record<ModuleId, string> = {
-    cell: '切换刚性球 / 球棍模型，观察原子与晶胞框线的空间关系。',
+    cell: '三种球模型可切换，观察原子与晶胞框线。',
     bravais: '2×2×2 阵列已展开，观察同一格点在相邻晶胞中的平移重复。',
     packing: '半透明面是密排面，右侧虚影表示剖面平移展开，箭头表示密排方向。',
     coordination: '点击任意基体原子，重新计算中心原子的最近邻与配位数。',
