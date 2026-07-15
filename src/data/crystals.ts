@@ -209,7 +209,7 @@ export const defaultSettings: DisplaySettings = {
   showSupercell: false,
   atomOpacity: 1,
   speed: 1,
-  autoRotate: false,
+  autoRotate: true,
   exploded: false,
   sectionView: false,
 };

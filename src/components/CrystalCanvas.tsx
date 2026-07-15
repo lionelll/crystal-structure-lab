@@ -65,13 +65,16 @@ interface DynamicClippingPlane {
 
 export const atomVisualStyle = {
   baseColor: '#38bdf8',
-  specularColor: '#ffffff',
-  shininess: 64,
+  specularColor: '#888888',
+  shininess: 80,
   bodyLiftColor: '#052d3b',
   bodyLiftIntensity: 0.5,
+  keyLightIntensity: 1.8,
   cubicSchematicRadiusOverA: 0.5 / 3.6,
   hcpSchematicRadiusOverA: 0.5 / 1.8,
 } as const;
+
+export const AUTO_ROTATE_RADIANS_PER_FRAME = 0.003;
 
 const atomColor = new THREE.Color(atomVisualStyle.baseColor);
 const highlightColor = new THREE.Color('#fff65c');
@@ -100,6 +103,19 @@ export function atomRenderRadius(crystal: CrystalType, modelStyle: ModelStyle) {
     ? atomVisualStyle.hcpSchematicRadiusOverA
     : atomVisualStyle.cubicSchematicRadiusOverA;
   return (modelStyle === 'rigid' ? geometry.atomRadiusOverA : radiusOverA) * geometry.worldA;
+}
+
+const interstitialModules = new Set<ModuleId>(['tetra', 'octa', 'carbon']);
+
+export function atomOpacityForModule(
+  modelStyle: ModelStyle,
+  moduleId: ModuleId,
+  requestedOpacity: number,
+) {
+  if (modelStyle === 'rigid' && interstitialModules.has(moduleId)) {
+    return Math.min(requestedOpacity, 0.45);
+  }
+  return requestedOpacity;
 }
 
 interface AtomMaterialOptions {
@@ -166,7 +182,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       if (!camera || !controls) return;
       const repeat = settings.showSupercell || activeModule === 'bravais' || activeModule === 'coordination' ? 2 : 1;
       setDefaultCamera(camera, controls, crystal, repeat, activeModule);
-      rootRef.current?.rotation.set(-0.12, 0.26, 0.03);
+      rootRef.current?.rotation.set(0, 0, 0);
     },
     capture() {
       const renderer = rendererRef.current;
@@ -184,7 +200,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0x05070c, 8, 16);
-    const camera = new THREE.PerspectiveCamera(42, mount.clientWidth / mount.clientHeight, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(45, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.position.set(4.5, 3.9, 5.4);
     cameraRef.current = camera;
 
@@ -199,7 +215,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
+    controls.dampingFactor = 0.05;
     controls.minDistance = 3.2;
     controls.maxDistance = 14;
     controlsRef.current = controls;
@@ -210,7 +226,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
 
     const ambient = new THREE.AmbientLight(0x708090, 1.35);
     scene.add(ambient);
-    const key = new THREE.DirectionalLight(0xffffff, 3.4);
+    const key = new THREE.DirectionalLight(0xffffff, atomVisualStyle.keyLightIntensity);
     key.position.set(5, 10, 7);
     scene.add(key);
     const rim = new THREE.DirectionalLight(0x38bdf8, 0.75);
@@ -262,7 +278,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       controls.update();
       const s = settingsRef.current;
       if (s.autoRotate && rootRef.current) {
-        rootRef.current.rotation.y += 0.006 * s.speed;
+        rootRef.current.rotation.y += AUTO_ROTATE_RADIANS_PER_FRAME * s.speed;
       }
       if (rootRef.current && dynamicClippingRef.current.length > 0) {
         rootRef.current.updateMatrixWorld(true);
@@ -313,7 +329,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     clearGroup(root);
     pickablesRef.current = [];
     dynamicClippingRef.current = [];
-    root.rotation.set(-0.12, 0.26, 0.03);
+    root.rotation.set(0, 0, 0);
 
     const repeat = settings.showSupercell || activeModule === 'bravais' || activeModule === 'coordination' ? 2 : 1;
     const hcpBravaisStep = crystal === 'HCP' && activeModule === 'bravais' ? bravaisStep : -1;
@@ -336,7 +352,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         root,
         atoms,
         radius,
-        settings.atomOpacity,
+        atomOpacityForModule(settings.modelStyle, activeModule, settings.atomOpacity),
         settings.showLabels && !settings.sectionView,
         activeModule,
         pickablesRef.current,
@@ -1322,13 +1338,13 @@ export function getGapPositions(crystal: CrystalType, kind: 'tetra' | 'octa') {
   ].map((p) => cubicPoint(p as Vec3Tuple, 1));
 }
 
-function getGapLabel(crystal: CrystalType, kind: 'tetra' | 'octa', index: number) {
+export function getGapLabel(crystal: CrystalType, kind: 'tetra' | 'octa', index: number) {
   if (crystal === 'HCP') {
     if (kind === 'tetra') {
       const dir = index % 2 === 0 ? '下指' : '上指';
-      return `层间${dir} T${index + 1} [12/cell]`;
+      return `层间${dir} [12/cell]`;
     }
-    return `层间八面体 O${index + 1} [6/cell]`;
+    return '层间八面体 [6/cell]';
   }
   if (crystal === 'FCC') {
     if (kind === 'tetra') {

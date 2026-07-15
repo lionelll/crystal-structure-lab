@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
+  AUTO_ROTATE_RADIANS_PER_FRAME,
+  atomOpacityForModule,
   atomRenderRadius,
   atomVisualStyle,
   carbonStatus,
@@ -9,9 +11,11 @@ import {
   fcc110DirectionEndpoints,
   fcc111PackingSites,
   findSurroundingAtoms,
+  getGapLabel,
   getGapPositions,
   polyhedronEdges,
 } from './CrystalCanvas';
+import { defaultSettings } from '../data/crystals';
 import {
   densityCellClippingPlaneSpecs,
   hcpCellAtoms,
@@ -74,12 +78,43 @@ describe('reference atom visuals', () => {
 
   it('matches the reference cyan Phong appearance', () => {
     expect(atomVisualStyle.baseColor).toBe('#38bdf8');
-    expect(atomVisualStyle.specularColor).toBe('#ffffff');
-    expect(atomVisualStyle.shininess).toBe(64);
+    expect(atomVisualStyle.specularColor).toBe('#888888');
+    expect(atomVisualStyle.shininess).toBe(80);
     expect(atomVisualStyle.bodyLiftColor).toBe('#052d3b');
     expect(atomVisualStyle.bodyLiftIntensity).toBe(0.5);
+    expect(atomVisualStyle.keyLightIntensity).toBe(1.8);
     expect(atomVisualStyle.cubicSchematicRadiusOverA).toBeCloseTo(0.5 / 3.6, 8);
     expect(atomVisualStyle.hcpSchematicRadiusOverA).toBeCloseTo(0.5 / 1.8, 8);
+  });
+
+  it('starts with the reference slow rotation speed', () => {
+    expect(defaultSettings.autoRotate).toBe(true);
+    expect(AUTO_ROTATE_RADIANS_PER_FRAME).toBe(0.003);
+  });
+});
+
+describe('interstitial module visibility', () => {
+  it.each(['tetra', 'octa', 'carbon'] as const)(
+    'caps rigid-sphere opacity in the %s module',
+    (moduleId) => {
+      expect(atomOpacityForModule('rigid', moduleId, 1)).toBe(0.45);
+    },
+  );
+
+  it('does not increase a lower user-selected opacity', () => {
+    expect(atomOpacityForModule('rigid', 'tetra', 0.3)).toBe(0.3);
+  });
+
+  it('preserves opacity outside rigid interstitial views', () => {
+    expect(atomOpacityForModule('schematic', 'tetra', 1)).toBe(1);
+    expect(atomOpacityForModule('rigid', 'cell', 1)).toBe(1);
+  });
+
+  it('keeps the HCP site identifier out of the descriptive suffix', () => {
+    expect(getGapLabel('HCP', 'tetra', 0)).toBe('层间下指 [12/cell]');
+    expect(getGapLabel('HCP', 'tetra', 1)).toBe('层间上指 [12/cell]');
+    expect(getGapLabel('HCP', 'octa', 0)).toBe('层间八面体 [6/cell]');
+    expect(`T1  ${getGapLabel('HCP', 'tetra', 0)}`).not.toMatch(/T1.*T1/);
   });
 });
 
