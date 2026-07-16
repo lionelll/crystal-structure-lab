@@ -5,11 +5,8 @@ interface Props {
   activeModule: ModuleId;
   crystal: CrystalType;
   settings: DisplaySettings;
-  carbonInserted: boolean;
-  carbonGapType: 'octa' | 'tetra';
   onModuleChange: (id: ModuleId) => void;
   onSettingsChange: (settings: DisplaySettings) => void;
-  onCarbonChange: (value: boolean) => void;
 }
 
 const moduleIcons: Record<ModuleId, Parameters<typeof Icon>[0]['name']> = {
@@ -17,13 +14,11 @@ const moduleIcons: Record<ModuleId, Parameters<typeof Icon>[0]['name']> = {
   bravais: 'lattice',
   packing: 'plane',
   coordination: 'nodes',
-  density: 'density',
   tetra: 'tetra',
   octa: 'octa',
-  carbon: 'carbon',
 };
 
-export function ControlPanel({ activeModule, crystal, settings, carbonInserted, carbonGapType, onModuleChange, onSettingsChange, onCarbonChange }: Props) {
+export function ControlPanel({ activeModule, crystal, settings, onModuleChange, onSettingsChange }: Props) {
   const info = crystals[crystal];
   const patch = (partial: Partial<DisplaySettings>) => onSettingsChange({ ...settings, ...partial });
   const setModel = (modelStyle: ModelStyle) => patch({ modelStyle });
@@ -35,23 +30,19 @@ export function ControlPanel({ activeModule, crystal, settings, carbonInserted, 
           <span><Icon name="lattice" />功能模块</span>
         </div>
         <div className="module-list">
-          {modules.map((item) => {
-            const disabled = crystal === 'HCP' && item.id === 'carbon';
-            return (
+          {modules.map((item) => (
               <button
                 type="button"
                 key={item.id}
                 className={`module-row ${activeModule === item.id ? 'active' : ''}`}
                 onClick={() => onModuleChange(item.id)}
-                title={disabled ? '碳原子嵌入实验仅用于 FCC / BCC' : item.summary}
-                disabled={disabled}
+                title={item.summary}
               >
                 <Icon name={moduleIcons[item.id]} />
                 <span className="module-index">{item.index}</span>
                 <span>{item.title}</span>
               </button>
-            );
-          })}
+          ))}
         </div>
       </section>
 
@@ -71,39 +62,14 @@ export function ControlPanel({ activeModule, crystal, settings, carbonInserted, 
           </div>
 
           <div className="switch-list">
-            <Toggle checked={settings.showCell} label="显示晶胞框线" onChange={(checked) => patch({ showCell: checked })} />
-            <Toggle checked={settings.showAxes} label="显示坐标轴" onChange={(checked) => patch({ showAxes: checked })} />
-            <Toggle checked={settings.showLabels} label="显示原子编号" onChange={(checked) => patch({ showLabels: checked })} />
             <Toggle checked={settings.showSupercell} label="显示相邻晶胞（2×2×2）" onChange={(checked) => patch({ showSupercell: checked })} />
           </div>
-
-          <label className="range-row">
-            <span>原子透明度</span>
-            <input type="range" min="35" max="100" value={Math.round(settings.atomOpacity * 100)} onChange={(event) => patch({ atomOpacity: Number(event.target.value) / 100 })} />
-            <b>{Math.round(settings.atomOpacity * 100)}%</b>
-          </label>
-          <label className="range-row">
-            <span>动画速度</span>
-            <input type="range" min="0" max="200" value={Math.round(settings.speed * 100)} onChange={(event) => patch({ speed: Number(event.target.value) / 100 })} />
-            <b>{settings.speed.toFixed(1)}x</b>
-          </label>
 
           <button className="reset-wide" type="button" onClick={() => onSettingsChange(defaultSettings)}>
             <Icon name="reset" />恢复默认设置
           </button>
         </div>
 
-        {activeModule === 'carbon' && (
-          <div className="carbon-box">
-            <div>
-              <strong>碳原子状态</strong>
-              <p>{carbonInserted ? '已进入目标间隙，可对比 FCC / BCC 间隙差异。' : '等待嵌入。点击画布中的发光间隙或下方按钮。'}</p>
-            </div>
-            <button className="primary-action" type="button" onClick={() => onCarbonChange(!carbonInserted)}>
-              {carbonInserted ? '移出碳原子' : carbonGapType === 'tetra' ? '放入四面体间隙' : '放入八面体间隙'}
-            </button>
-          </div>
-        )}
       </section>
     </aside>
   );

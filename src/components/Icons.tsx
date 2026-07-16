@@ -5,10 +5,8 @@ type IconName =
   | 'lattice'
   | 'plane'
   | 'nodes'
-  | 'density'
   | 'tetra'
   | 'octa'
-  | 'carbon'
   | 'reset'
   | 'fullscreen'
   | 'help'
@@ -27,10 +25,8 @@ const paths: Record<IconName, ReactElement> = {
   lattice: <><circle cx="7" cy="7" r="2" /><circle cx="17" cy="7" r="2" /><circle cx="7" cy="17" r="2" /><circle cx="17" cy="17" r="2" /><path d="M9 7h6M7 9v6M17 9v6M9 17h6" /></>,
   plane: <><path d="M4 17 12 4l8 13-8 4-8-4Z" /><path d="M8 14h8M12 4v17" /></>,
   nodes: <><circle cx="12" cy="12" r="2.5" /><circle cx="5" cy="5" r="2" /><circle cx="19" cy="5" r="2" /><circle cx="5" cy="19" r="2" /><circle cx="19" cy="19" r="2" /><path d="m7 7 3 3m7-3-3 3m-7 7 3-3m7 3-3-3" /></>,
-  density: <><path d="M4 19V5m0 14h16" /><path d="M8 17V9m4 8V6m4 11v-5" /></>,
   tetra: <><path d="M12 3 4 19h16L12 3Z" /><path d="M12 3v16M4 19l8-5 8 5" /></>,
   octa: <><path d="M12 2 4 8v8l8 6 8-6V8l-8-6Z" /><path d="M4 8l8 6 8-6M12 14v8" /></>,
-  carbon: <><path d="M12 3 4 8v8l8 5 8-5V8l-8-5Z" /><path d="M8.5 12.5a3.7 3.7 0 1 0 0-.9" /></>,
   reset: <><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></>,
   fullscreen: <><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" /></>,
   help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.7 2.7 0 0 1 5.1 1.3c0 2-2.6 2.2-2.6 4" /><path d="M12 18h.01" /></>,

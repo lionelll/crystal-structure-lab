@@ -9,8 +9,6 @@ export default function App() {
   const [crystal, setCrystal] = useState<CrystalType>('FCC');
   const [activeModule, setActiveModule] = useState<ModuleId>('cell');
   const [settings, setSettings] = useState<DisplaySettings>(defaultSettings);
-  const [carbonInserted, setCarbonInserted] = useState(false);
-  const [carbonGapType, setCarbonGapType] = useState<'octa' | 'tetra'>('octa');
   const [helpOpen, setHelpOpen] = useState(false);
   const canvasRef = useRef<CrystalCanvasHandle>(null);
 
@@ -18,8 +16,6 @@ export default function App() {
 
   const handleCrystalChange = (next: CrystalType) => {
     setCrystal(next);
-    setCarbonInserted(false);
-    if (next === 'HCP' && activeModule === 'carbon') setActiveModule('cell');
   };
 
   const toggleFullscreen = async () => {
@@ -59,11 +55,8 @@ export default function App() {
           activeModule={activeModule}
           crystal={crystal}
           settings={settings}
-          carbonInserted={carbonInserted}
-          carbonGapType={carbonGapType}
           onModuleChange={setActiveModule}
           onSettingsChange={setSettings}
-          onCarbonChange={setCarbonInserted}
         />
 
         <section className="stage-column">
@@ -73,9 +66,6 @@ export default function App() {
               crystal={crystal}
               activeModule={activeModule}
               settings={settings}
-              carbonInserted={carbonInserted}
-              onCarbonChange={setCarbonInserted}
-              onCarbonGapType={setCarbonGapType}
             />
           </div>
 
@@ -89,7 +79,7 @@ export default function App() {
           </div>
         </section>
 
-        <InfoPanel crystal={crystal} activeModule={activeModule} carbonInserted={carbonInserted} />
+        <InfoPanel crystal={crystal} activeModule={activeModule} />
       </main>
 
       <footer className="status-strip">
@@ -103,7 +93,6 @@ export default function App() {
           <div className="help-modal panel" role="dialog" aria-modal="true" aria-label="帮助" onClick={(event) => event.stopPropagation()}>
             <div className="card-title">操作帮助</div>
             <p>拖拽旋转晶体，滚轮缩放，右键平移。左侧选择功能模块，顶部切换 FCC / BCC / HCP，底部工具栏控制拆解、截面、旋转和截图。</p>
-            <p>“碳原子嵌入”适用于 FCC / BCC，可点击橙色八面体或绿色四面体间隙，对比占位倾向与局部畸变。</p>
             <button className="primary-action" type="button" onClick={() => setHelpOpen(false)}>知道了</button>
           </div>
         </div>

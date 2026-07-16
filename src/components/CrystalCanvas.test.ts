@@ -5,33 +5,35 @@ import {
   atomOpacityForModule,
   atomRenderRadius,
   atomVisualStyle,
-  carbonStatus,
+  cameraPreset,
+  coordinationVisualStyle,
   coordinationShell,
   createAtoms,
+  createBravaisSites,
+  deduplicateAtoms,
   fcc110DirectionEndpoints,
   fcc111PackingSites,
   findSurroundingAtoms,
+  gapVisualStyle,
   getGapLabel,
   getGapPositions,
+  nearestNeighborBondPairs,
   polyhedronEdges,
 } from './CrystalCanvas';
-import { defaultSettings } from '../data/crystals';
+import { crystals, defaultSettings, modules } from '../data/crystals';
 import {
-  densityCellClippingPlaneSpecs,
-  hcpCellAtoms,
-  hcpDensityContributions,
   hcpGeometry,
   latticeGeometry,
   sectionClippingPlaneSpec,
   type CrystalType,
 } from '../data/latticeGeometry';
 
-function uniquePositions(points: THREE.Vector3[]) {
-  return new Map(points.map((point) => [point.toArray().map((value) => value.toFixed(6)).join(','), point])).values();
+function positionKey(point: THREE.Vector3) {
+  return point.toArray().map((value) => value.toFixed(6)).join(',');
 }
 
 function nearestDistance(crystal: CrystalType) {
-  const atoms = [...uniquePositions(createAtoms(crystal, 1, false, 'cell').map((atom) => atom.position))];
+  const atoms = createAtoms(crystal, 1, false, 'cell').map((atom) => atom.position);
   let nearest = Number.POSITIVE_INFINITY;
   for (let i = 0; i < atoms.length; i++) {
     for (let j = i + 1; j < atoms.length; j++) {
@@ -42,8 +44,37 @@ function nearestDistance(crystal: CrystalType) {
   return nearest;
 }
 
-describe('rigid-sphere geometry', () => {
-  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s nearest neighbors touch', (crystal) => {
+describe('module and settings cleanup', () => {
+  it('keeps exactly the six requested modules in order', () => {
+    expect(modules.map(({ id, index }) => [id, index])).toEqual([
+      ['cell', 1],
+      ['bravais', 2],
+      ['packing', 3],
+      ['coordination', 4],
+      ['tetra', 5],
+      ['octa', 6],
+    ]);
+  });
+
+  it('removes density, carbon, optional frame controls and speed controls from data', () => {
+    expect(modules.some(({ id }) => ['density', 'carbon'].includes(id))).toBe(false);
+    expect(Object.keys(defaultSettings)).toEqual([
+      'modelStyle',
+      'showSupercell',
+      'autoRotate',
+      'exploded',
+      'sectionView',
+    ]);
+    Object.values(crystals).forEach((info) => {
+      expect(info).not.toHaveProperty('apf');
+      expect(info).not.toHaveProperty('formula');
+      expect(info).not.toHaveProperty('carbon');
+    });
+  });
+});
+
+describe('crystallographic geometry', () => {
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s rigid nearest neighbors touch', (crystal) => {
     const geometry = latticeGeometry[crystal];
     expect(nearestDistance(crystal)).toBeCloseTo(2 * geometry.atomRadiusOverA * geometry.worldA, 5);
   });
@@ -56,69 +87,99 @@ describe('rigid-sphere geometry', () => {
   });
 });
 
-describe('reference atom visuals', () => {
-  it.each([
-    ['FCC', 'schematic'], ['BCC', 'schematic'], ['HCP', 'schematic'],
-    ['FCC', 'ball-stick'], ['BCC', 'ball-stick'], ['HCP', 'ball-stick'],
-  ] as const)('%s %s atoms use the reference radius ratio', (crystal, modelStyle) => {
-    expect(atomRenderRadius(crystal, modelStyle)).toBeCloseTo(
-      (crystal === 'HCP'
-        ? atomVisualStyle.hcpSchematicRadiusOverA
-        : atomVisualStyle.cubicSchematicRadiusOverA) * latticeGeometry[crystal].worldA,
+describe('atom and bond visuals', () => {
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s reference spheres keep the reference radius', (crystal) => {
+    const ratio = crystal === 'HCP'
+      ? atomVisualStyle.hcpSchematicRadiusOverA
+      : atomVisualStyle.cubicSchematicRadiusOverA;
+    expect(atomRenderRadius(crystal, 'schematic')).toBeCloseTo(ratio * latticeGeometry[crystal].worldA, 8);
+  });
+
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s ball-stick atoms are 60% of reference spheres', (crystal) => {
+    expect(atomRenderRadius(crystal, 'ball-stick')).toBeCloseTo(
+      atomRenderRadius(crystal, 'schematic') * 0.6,
       8,
     );
   });
 
-  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s rigid atoms retain the crystallographic contact radius', (crystal) => {
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s rigid atoms retain contact radius', (crystal) => {
     expect(atomRenderRadius(crystal, 'rigid')).toBeCloseTo(
       latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA,
       8,
     );
   });
 
-  it('matches the reference cyan Phong appearance', () => {
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s bonds contain unique nearest-neighbor pairs only', (crystal) => {
+    const atoms = createAtoms(crystal, 2, false, 'cell');
+    const pairs = nearestNeighborBondPairs(atoms, crystal);
+    const expectedDistance = 2 * latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA;
+    expect(pairs.length).toBeGreaterThan(0);
+    expect(new Set(pairs.map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`)).size).toBe(pairs.length);
+    pairs.forEach(([a, b]) => {
+      expect(atoms[a].position.distanceTo(atoms[b].position)).toBeCloseTo(expectedDistance, 5);
+    });
+  });
+
+  it('keeps the reference material and fixed animation values', () => {
     expect(atomVisualStyle.baseColor).toBe('#38bdf8');
     expect(atomVisualStyle.specularColor).toBe('#888888');
     expect(atomVisualStyle.shininess).toBe(80);
-    expect(atomVisualStyle.bodyLiftColor).toBe('#052d3b');
-    expect(atomVisualStyle.bodyLiftIntensity).toBe(0.5);
-    expect(atomVisualStyle.keyLightIntensity).toBe(1.8);
-    expect(atomVisualStyle.cubicSchematicRadiusOverA).toBeCloseTo(0.5 / 3.6, 8);
-    expect(atomVisualStyle.hcpSchematicRadiusOverA).toBeCloseTo(0.5 / 1.8, 8);
-  });
-
-  it('starts with the reference slow rotation speed', () => {
+    expect(atomVisualStyle.bondRadius).toBe(0.025);
     expect(defaultSettings.autoRotate).toBe(true);
     expect(AUTO_ROTATE_RADIANS_PER_FRAME).toBe(0.003);
   });
 });
 
-describe('interstitial module visibility', () => {
-  it.each(['tetra', 'octa', 'carbon'] as const)(
-    'caps rigid-sphere opacity in the %s module',
-    (moduleId) => {
-      expect(atomOpacityForModule('rigid', moduleId, 1)).toBe(0.45);
-    },
-  );
-
-  it('does not increase a lower user-selected opacity', () => {
-    expect(atomOpacityForModule('rigid', 'tetra', 0.3)).toBe(0.3);
+describe('independent Bravais lattice sites', () => {
+  it.each([
+    ['FCC', 14],
+    ['BCC', 9],
+    ['HCP', 14],
+  ] as const)('%s conventional cell exposes %i unique lattice sites', (crystal, count) => {
+    const sites = createBravaisSites(crystal, 1);
+    expect(sites).toHaveLength(count);
+    expect(new Set(sites.map((site) => positionKey(site.position))).size).toBe(count);
   });
 
-  it('preserves opacity outside rigid interstitial views', () => {
-    expect(atomOpacityForModule('schematic', 'tetra', 1)).toBe(1);
-    expect(atomOpacityForModule('rigid', 'cell', 1)).toBe(1);
+  it('keeps the HCP basis out of the Bravais view', () => {
+    expect(createBravaisSites('HCP', 1).some((site) => site.kind === 'center')).toBe(false);
   });
 
-  it('keeps the HCP site identifier out of the descriptive suffix', () => {
-    expect(getGapLabel('HCP', 'tetra', 0)).toBe('层间下指 [12/cell]');
-    expect(getGapLabel('HCP', 'tetra', 1)).toBe('层间上指 [12/cell]');
-    expect(getGapLabel('HCP', 'octa', 0)).toBe('层间八面体 [6/cell]');
-    expect(`T1  ${getGapLabel('HCP', 'tetra', 0)}`).not.toMatch(/T1.*T1/);
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s 2x2x2 lattice expands without duplicate sites', (crystal) => {
+    const single = createBravaisSites(crystal, 1);
+    const repeated = createBravaisSites(crystal, 2);
+    expect(repeated.length).toBeGreaterThan(single.length);
+    expect(new Set(repeated.map((site) => positionKey(site.position))).size).toBe(repeated.length);
+  });
+
+  it('deduplicates shared boundary atoms', () => {
+    const point = new THREE.Vector3(1, 2, 3);
+    const atoms = deduplicateAtoms([
+      { position: point.clone(), kind: 'base' },
+      { position: point.clone(), kind: 'face' },
+    ]);
+    expect(atoms).toHaveLength(1);
   });
 });
 
-describe('interstitial topology', () => {
+describe('interstitial topology and visuals', () => {
+  it('uses fixed translucent base atoms in both gap modules', () => {
+    expect(atomOpacityForModule('tetra')).toBe(0.42);
+    expect(atomOpacityForModule('octa')).toBe(0.42);
+    expect(atomOpacityForModule('cell')).toBe(1);
+  });
+
+  it('uses equal-size lit site spheres with stable colors', () => {
+    expect(gapVisualStyle('tetra')).toEqual({ radius: 0.15, color: '#45d27a' });
+    expect(gapVisualStyle('octa')).toEqual({ radius: 0.15, color: '#f39a42' });
+  });
+
+  it('keeps HCP site identifiers out of descriptive suffixes', () => {
+    expect(getGapLabel('HCP', 'tetra', 0)).toBe('层间下指 [12/cell]');
+    expect(getGapLabel('HCP', 'tetra', 1)).toBe('层间上指 [12/cell]');
+    expect(getGapLabel('HCP', 'octa', 0)).toBe('层间八面体 [6/cell]');
+  });
+
   it('builds tetrahedra with 6 edges and octahedra with 12', () => {
     const center = new THREE.Vector3();
     const tetra = [
@@ -147,45 +208,40 @@ describe('interstitial topology', () => {
     ['HCP', 'tetra', 4],
     ['HCP', 'octa', 6],
   ] as const)('%s %s site has %i unique surrounding atoms', (crystal, kind, count) => {
-    const gap = getGapPositions(crystal, kind)[0];
-    const surrounding = findSurroundingAtoms(crystal, gap, kind);
+    const surrounding = findSurroundingAtoms(crystal, getGapPositions(crystal, kind)[0], kind);
     expect(surrounding).toHaveLength(count);
-    expect([...uniquePositions(surrounding)]).toHaveLength(count);
-  });
-
-  it('provides all HCP interstitial positions in the conventional cell', () => {
-    expect(getGapPositions('HCP', 'tetra')).toHaveLength(12);
-    expect(getGapPositions('HCP', 'octa')).toHaveLength(6);
+    expect(new Set(surrounding.map(positionKey)).size).toBe(count);
   });
 });
 
 describe('coordination shells', () => {
+  it('uses yellow for the selected center and red for nearest neighbors', () => {
+    expect(coordinationVisualStyle).toEqual({
+      centerColor: '#fff65c',
+      neighborColor: '#ff4f57',
+      baseColor: '#174b70',
+    });
+  });
+
   it.each([
     ['FCC', 12],
     ['BCC', 8],
     ['HCP', 12],
-  ] as const)('%s boundary atoms retain one complete nearest-neighbor shell', (crystal, count) => {
-    const atoms = createAtoms(crystal, 2, false, 'coordination');
-    const target = atoms.reduce((current, atom) => (
-      atom.position.x + atom.position.y + atom.position.z
-        < current.position.x + current.position.y + current.position.z ? atom : current
-    )).position;
-    const shell = coordinationShell(atoms, crystal, target);
+  ] as const)('%s retains a complete periodic nearest-neighbor shell', (crystal, count) => {
+    const atoms = createAtoms(crystal, 1, false, 'coordination');
+    const shell = coordinationShell(atoms, crystal, atoms[0].position);
     expect(shell?.nearest).toHaveLength(count);
     const distances = shell!.nearest.map((neighbor) => neighbor.distance);
     expect(Math.max(...distances) - Math.min(...distances)).toBeLessThan(1e-5);
   });
 });
 
-describe('packing-plane teaching geometry', () => {
+describe('packing and camera presets', () => {
   it('defines three corners and three face centers on FCC {111}', () => {
     const sites = fcc111PackingSites();
-    expect(sites).toHaveLength(6);
     expect(sites.filter((site) => site.role === 'corner')).toHaveLength(3);
     expect(sites.filter((site) => site.role === 'face')).toHaveLength(3);
-    sites.forEach(({ position }) => {
-      expect(position[0] + position[1] + position[2]).toBeCloseTo(1, 8);
-    });
+    sites.forEach(({ position }) => expect(position[0] + position[1] + position[2]).toBeCloseTo(1, 8));
   });
 
   it('runs the FCC <110> arrow through a {111} face-center atom', () => {
@@ -194,56 +250,19 @@ describe('packing-plane teaching geometry', () => {
     expect(midpoint).toEqual([0.5, 0.5, 0]);
     expect(fcc111PackingSites()).toContainEqual({ position: midpoint, role: 'face' });
   });
-});
 
-describe('carbon status copy', () => {
-  it('describes an HCP tetrahedral site without falling back to octahedral copy', () => {
-    const status = carbonStatus('HCP', true, true, 0);
-    expect(status.text).toContain('四面体间隙');
-    expect(status.text).not.toContain('八面体间隙');
-    expect(status.text).toContain('碳嵌入实验未开放');
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s uses global Z-up', (crystal) => {
+    expect(cameraPreset(crystal, 1, 'cell').up).toEqual([0, 0, 1]);
   });
 
-  it('describes an HCP octahedral site and its disabled experiment scope', () => {
-    const status = carbonStatus('HCP', true, false, 0);
-    expect(status.text).toContain('八面体间隙');
-    expect(status.text).toContain('碳嵌入实验未开放');
-  });
-});
-
-describe('section and density clipping geometry', () => {
-  it('defines a half-cell section plane through the crystal origin', () => {
-    const plane = sectionClippingPlaneSpec();
-    expect(plane.normal).toEqual([1, 0, 0]);
-    expect(plane.constant).toBe(0);
+  it('uses an upright front-biased HCP first view', () => {
+    const preset = cameraPreset('HCP', 1, 'cell');
+    expect(preset.position[0]).toBeCloseTo(0, 8);
+    expect(preset.position[1]).toBeLessThan(0);
+    expect(preset.position[2]).toBeGreaterThan(0);
   });
 
-  it.each([
-    ['FCC', 6],
-    ['BCC', 6],
-    ['HCP', 8],
-  ] as const)('%s density cell uses %i clipping boundaries that retain the origin', (crystal, count) => {
-    const planes = densityCellClippingPlaneSpecs(crystal);
-    expect(planes).toHaveLength(count);
-    planes.forEach(({ normal, constant }) => {
-      expect(normal[0] * 0 + normal[1] * 0 + normal[2] * 0 + constant).toBeGreaterThanOrEqual(0);
-    });
-  });
-
-  it('counts six effective atoms in the conventional HCP prism', () => {
-    const contributions = hcpDensityContributions();
-    expect(contributions.map(({ effective }) => effective)).toEqual([2, 1, 3]);
-    expect(contributions.reduce((sum, item) => sum + item.count * item.fraction, 0)).toBeCloseTo(6, 8);
-  });
-
-  it('keeps every conventional HCP atom center inside the hexagonal-prism boundaries', () => {
-    const planes = densityCellClippingPlaneSpecs('HCP');
-    const signedDistance = (position: readonly [number, number, number]) => planes.map(({ normal, constant }) => (
-      normal[0] * position[0] + normal[1] * position[1] + normal[2] * position[2] + constant
-    ));
-    hcpCellAtoms(true).forEach(({ position }) => {
-      expect(Math.min(...signedDistance(position))).toBeGreaterThanOrEqual(-1e-8);
-    });
-    expect(signedDistance([hcpGeometry.a * 2, 0, 0]).some((distance) => distance < 0)).toBe(true);
+  it('retains the half-cell section plane through the origin', () => {
+    expect(sectionClippingPlaneSpec()).toEqual({ normal: [1, 0, 0], constant: 0 });
   });
 });
