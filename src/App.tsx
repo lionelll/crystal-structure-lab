@@ -49,6 +49,7 @@ export default function App() {
         <section className="stage-column">
           <div className="stage-panel">
             <div className="stage-heading">
+              <img className="stage-logo" src={brandLogo} alt="" />
               <strong>{activeTitle}</strong>
             </div>
             <CrystalCanvas
