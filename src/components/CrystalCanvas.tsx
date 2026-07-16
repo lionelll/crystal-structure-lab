@@ -61,6 +61,25 @@ interface DynamicClippingPlane {
   world: THREE.Plane;
 }
 
+interface GapSelectionContext {
+  layer: THREE.Group;
+  crystal: CrystalType;
+  kind: 'tetra' | 'octa';
+  positions: THREE.Vector3[];
+  renderedAtoms: RenderAtom[];
+}
+
+interface CoordinationSelectionContext {
+  layer: THREE.Group;
+  frameGroup: THREE.Group;
+  crystal: CrystalType;
+  atoms: RenderAtom[];
+  atomMeshes: Map<string, THREE.Mesh>;
+  radius: number;
+  renderedAtomKeys: Set<string>;
+  showSupercell: boolean;
+}
+
 export const atomVisualStyle = {
   baseColor: '#38bdf8',
   specularColor: '#888888',
@@ -100,6 +119,17 @@ export const packingDirectionStyle = {
 } as const;
 
 export const packingPlaneColor = '#3B82F6';
+
+export function sceneStructureKey(crystal: CrystalType, activeModule: ModuleId, settings: DisplaySettings) {
+  return [
+    crystal,
+    activeModule,
+    settings.modelStyle,
+    settings.showSupercell,
+    settings.exploded,
+    settings.sectionView,
+  ].join('|');
+}
 
 export interface CrystalAxisVector {
   label: string;
@@ -194,7 +224,7 @@ function createAtomMaterial(color: THREE.ColorRepresentation, options: AtomMater
     emissiveIntensity: options.emissiveIntensity ?? 1,
     transparent: opacity < 1,
     opacity,
-    clippingPlanes: options.clippingPlanes,
+    ...(options.clippingPlanes ? { clippingPlanes: options.clippingPlanes } : {}),
     side: options.side ?? THREE.FrontSide,
     fog: options.fog ?? true,
   });
@@ -215,7 +245,10 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   const centerPulseRef = useRef<THREE.Mesh | null>(null);
   const dynamicClippingRef = useRef<DynamicClippingPlane[]>([]);
   const coordinationFrameGroupRef = useRef<THREE.Group | null>(null);
+  const gapSelectionContextRef = useRef<GapSelectionContext | null>(null);
+  const coordinationSelectionContextRef = useRef<CoordinationSelectionContext | null>(null);
   const cameraTransitionFrameRef = useRef<number | null>(null);
+  const structureKey = sceneStructureKey(crystal, activeModule, settings);
 
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { moduleRef.current = activeModule; }, [activeModule]);
@@ -379,7 +412,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     pickablesRef.current = [];
     dynamicClippingRef.current = [];
     coordinationFrameGroupRef.current = null;
-    root.rotation.set(0, 0, 0);
+    gapSelectionContextRef.current = null;
+    coordinationSelectionContextRef.current = null;
 
     const repeat = settings.showSupercell ? 2 : 1;
     const standaloneModule = activeModule === 'bravais' || activeModule === 'stacking';
@@ -387,16 +421,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       ? []
       : createAtoms(crystal, repeat, settings.exploded, activeModule);
     const radius = atomRenderRadius(crystal, settings.modelStyle);
-    const focusTarget = coordinationTarget ? new THREE.Vector3(...coordinationTarget) : null;
-    if (activeModule === 'coordination' && focusTarget) markCoordinationFocus(atoms, focusTarget);
-
-    const coordShell = activeModule === 'coordination' && focusTarget
-      ? coordinationShell(atoms, crystal, focusTarget)
-      : null;
     const renderedAtomKeys = new Set(atoms.map((atom) => positionKey(atom.position)));
-    const coordinationNeighborKeys = coordShell
-      ? new Set(coordShell.nearest.map(({ atom }) => positionKey(atom.position)))
-      : undefined;
     const sectionSpec = settings.sectionView ? sectionClippingPlaneSpec() : null;
     const sectionPlanes = sectionSpec
       ? createDynamicClippingPlanes(root, [sectionSpec], dynamicClippingRef.current)
@@ -416,6 +441,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       addBravaisSites(root, createBravaisSites(crystal, repeat), sectionPlanes);
     } else {
       if (settings.modelStyle === 'ball-stick') addBonds(root, atoms, crystal, sectionPlanes);
+      const atomMeshes = activeModule === 'coordination' ? new Map<string, THREE.Mesh>() : undefined;
       addAtoms(
         root,
         atoms,
@@ -424,21 +450,61 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         activeModule,
         pickablesRef.current,
         sectionPlanes,
-        coordinationNeighborKeys,
+        atomMeshes,
       );
+      if (activeModule === 'coordination' && atomMeshes) {
+        const layer = new THREE.Group();
+        root.add(layer);
+        const context: CoordinationSelectionContext = {
+          layer,
+          frameGroup,
+          crystal,
+          atoms,
+          atomMeshes,
+          radius,
+          renderedAtomKeys,
+          showSupercell: settings.showSupercell,
+        };
+        coordinationSelectionContextRef.current = context;
+        updateCoordinationSelection(context, coordinationTarget, coordAnimRef, centerPulseRef);
+        setCellFrameGroupProgress(frameGroup, 1);
+      }
     }
     addAxes(root, crystal);
     if (activeModule === 'packing') addPacking(root, crystal);
-    if (coordShell) {
-      addCoordination(root, coordShell, radius, renderedAtomKeys, coordAnimRef, centerPulseRef);
-    } else {
+    if (activeModule !== 'coordination') {
       coordAnimRef.current = { objects: [], startTime: 0 };
       centerPulseRef.current = null;
     }
-    if (activeModule === 'tetra') addGaps(root, crystal, 'tetra', repeat, atoms, pickablesRef.current, selectedGapIndex);
-    if (activeModule === 'octa') addGaps(root, crystal, 'octa', repeat, atoms, pickablesRef.current, selectedGapIndex);
+    if (activeModule === 'tetra' || activeModule === 'octa') {
+      const { positions } = addGapTargets(root, crystal, activeModule, repeat, pickablesRef.current);
+      const layer = new THREE.Group();
+      root.add(layer);
+      const context: GapSelectionContext = { layer, crystal, kind: activeModule, positions, renderedAtoms: atoms };
+      gapSelectionContextRef.current = context;
+      renderGapSelectionLayer(layer, crystal, activeModule, positions, atoms, selectedGapIndex);
+    }
     if (settings.sectionView) addSectionPlane(root, crystal);
-  }, [activeModule, coordinationTarget, crystal, selectedGapIndex, settings]);
+  }, [structureKey]);
+
+  useEffect(() => {
+    const context = gapSelectionContextRef.current;
+    if (!context) return;
+    renderGapSelectionLayer(
+      context.layer,
+      context.crystal,
+      context.kind,
+      context.positions,
+      context.renderedAtoms,
+      selectedGapIndex,
+    );
+  }, [selectedGapIndex]);
+
+  useEffect(() => {
+    const context = coordinationSelectionContextRef.current;
+    if (!context) return;
+    updateCoordinationSelection(context, coordinationTarget, coordAnimRef, centerPulseRef);
+  }, [coordinationTarget]);
 
   useEffect(() => {
     const camera = cameraRef.current;
@@ -449,10 +515,20 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     if (cameraTransitionFrameRef.current !== null) cancelAnimationFrame(cameraTransitionFrameRef.current);
     cameraTransitionFrameRef.current = null;
 
-    const shouldAnimate = activeModule === 'coordination'
-      && Boolean(coordinationTarget)
-      && !settings.showSupercell;
-    if (!shouldAnimate) {
+    setDefaultCamera(camera, controls, crystal, repeat, activeModule);
+    setCellFrameGroupProgress(coordinationFrameGroupRef.current, 1);
+  }, [activeModule, crystal, settings.showSupercell]);
+
+  useEffect(() => {
+    if (activeModule !== 'coordination') return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (!camera || !controls) return;
+    if (cameraTransitionFrameRef.current !== null) cancelAnimationFrame(cameraTransitionFrameRef.current);
+    cameraTransitionFrameRef.current = null;
+
+    const repeat = cellFrameRepeat(crystal, activeModule, Boolean(coordinationTarget), settings.showSupercell);
+    if (!coordinationTarget || settings.showSupercell) {
       setDefaultCamera(camera, controls, crystal, repeat, activeModule);
       setCellFrameGroupProgress(coordinationFrameGroupRef.current, 1);
       return;
@@ -482,7 +558,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       if (cameraTransitionFrameRef.current !== null) cancelAnimationFrame(cameraTransitionFrameRef.current);
       cameraTransitionFrameRef.current = null;
     };
-  }, [activeModule, coordinationTarget, crystal, settings.showSupercell]);
+  }, [coordinationTarget]);
 
   return (
     <div className="viewport-wrap">
@@ -665,18 +741,11 @@ function cubicPoint(point: Vec3Tuple, repeat: number) {
   return new THREE.Vector3((point[0] - repeat / 2) * cellScale, (point[1] - repeat / 2) * cellScale, (point[2] - repeat / 2) * cellScale);
 }
 
-function markCoordinationFocus(atoms: RenderAtom[], target: THREE.Vector3) {
-  atoms.forEach((atom) => { atom.highlight = false; });
-  const closest = closestAtomIndex(atoms, target);
-  if (closest >= 0) atoms[closest].highlight = true;
-}
-
-function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, moduleId: ModuleId, pickables?: THREE.Object3D[], clippingPlanes: THREE.Plane[] = [], coordinationNeighborKeys?: Set<string>) {
+function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, moduleId: ModuleId, pickables?: THREE.Object3D[], clippingPlanes: THREE.Plane[] = [], atomMeshes?: Map<string, THREE.Mesh>) {
   const sphere = new THREE.SphereGeometry(radius, 32, 32);
   atoms.forEach((atom) => {
     let color = atom.kind === 'face' ? faceColor : atomColor;
     if (moduleId === 'coordination') color = coordinationBaseColor;
-    if (coordinationNeighborKeys?.has(positionKey(atom.position))) color = coordinationNeighborColor;
     if (atom.highlight) color = highlightColor;
     const material = createAtomMaterial(color, {
       emissive: atom.highlight ? '#665900' : atomVisualStyle.bodyLiftColor,
@@ -694,6 +763,7 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
       mesh.userData.coordPosition = atom.position.toArray();
       pickables.push(mesh);
     }
+    atomMeshes?.set(positionKey(atom.position), mesh);
     group.add(mesh);
 
     if (atom.highlight) {
@@ -702,6 +772,36 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
       group.add(halo);
     }
   });
+}
+
+export function applyCoordinationAtomVisuals(
+  atomMeshes: Map<string, THREE.Mesh>,
+  shell: ReturnType<typeof coordinationShell>,
+) {
+  atomMeshes.forEach((mesh) => {
+    const material = mesh.material as THREE.MeshPhongMaterial;
+    material.color.copy(coordinationBaseColor);
+    material.emissive.set(atomVisualStyle.bodyLiftColor);
+    material.emissiveIntensity = atomVisualStyle.bodyLiftIntensity;
+  });
+  if (!shell) return;
+
+  shell.nearest.forEach(({ atom }) => {
+    const mesh = atomMeshes.get(positionKey(atom.position));
+    if (!mesh) return;
+    const material = mesh.material as THREE.MeshPhongMaterial;
+    material.color.copy(coordinationNeighborColor);
+    material.emissive.set('#5c080b');
+    material.emissiveIntensity = 0.45;
+  });
+
+  const centerMesh = atomMeshes.get(positionKey(shell.center));
+  if (centerMesh) {
+    const material = centerMesh.material as THREE.MeshPhongMaterial;
+    material.color.copy(highlightColor);
+    material.emissive.set('#665900');
+    material.emissiveIntensity = 0.9;
+  }
 }
 
 export function nearestNeighborBondPairs(atoms: RenderAtom[], crystal: CrystalType) {
@@ -996,6 +1096,38 @@ function addCoordination(group: THREE.Group, shell: NonNullable<ReturnType<typeo
   coordAnimRef.current = { objects: animObjects, startTime: performance.now() };
 }
 
+function updateCoordinationSelection(
+  context: CoordinationSelectionContext,
+  target: Vec3Tuple | null,
+  coordAnimRef: React.MutableRefObject<{ objects: THREE.Object3D[]; startTime: number }>,
+  centerPulseRef: React.MutableRefObject<THREE.Mesh | null>,
+) {
+  clearGroup(context.layer);
+  clearGroup(context.frameGroup);
+  coordAnimRef.current = { objects: [], startTime: 0 };
+  centerPulseRef.current = null;
+
+  const frameRepeat = cellFrameRepeat(context.crystal, 'coordination', Boolean(target), context.showSupercell);
+  addCellFrames(context.frameGroup, context.crystal, frameRepeat, false);
+  setCellFrameGroupProgress(context.frameGroup, target && !context.showSupercell ? 0 : 1);
+
+  const shell = target
+    ? coordinationShell(context.atoms, context.crystal, new THREE.Vector3(...target))
+    : null;
+  applyCoordinationAtomVisuals(context.atomMeshes, shell);
+  if (shell) {
+    addCoordination(
+      context.layer,
+      shell,
+      context.radius,
+      context.renderedAtomKeys,
+      coordAnimRef,
+      centerPulseRef,
+    );
+  }
+  return shell;
+}
+
 export function gapVisualStyle(kind: 'tetra' | 'octa') {
   return {
     radius: 0.15,
@@ -1039,13 +1171,12 @@ function addPolyhedronCage(group: THREE.Group, vertices: THREE.Vector3[], center
   group.add(cage);
 }
 
-function addGaps(group: THREE.Group, crystal: CrystalType, kind: 'tetra' | 'octa', repeat: number, renderedAtoms: RenderAtom[], pickables: THREE.Object3D[], selectedIndex = 0) {
+export function addGapTargets(group: THREE.Group, crystal: CrystalType, kind: 'tetra' | 'octa', repeat: number, pickables: THREE.Object3D[]) {
   const positions = getGapPositions(crystal, kind, repeat);
   const { radius, color } = gapVisualStyle(kind);
-  const normalizedIndex = positions.length ? Math.min(selectedIndex, positions.length - 1) : 0;
   const geometry = new THREE.SphereGeometry(radius, 32, 24);
+  const meshes: THREE.Mesh[] = [];
   positions.forEach((position, index) => {
-    const selected = index === normalizedIndex;
     const sphere = new THREE.Mesh(
       geometry,
       createAtomMaterial(color, { emissive: kind === 'tetra' ? '#0b5429' : '#6b3107', emissiveIntensity: 0.6 }),
@@ -1055,18 +1186,33 @@ function addGaps(group: THREE.Group, crystal: CrystalType, kind: 'tetra' | 'octa
     sphere.userData.gapIndex = index;
     group.add(sphere);
     pickables.push(sphere);
-    if (selected) {
-      const surrounding = findSurroundingAtoms(crystal, position, kind, renderedAtoms);
-      const lineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.92, depthTest: false, fog: false });
-      surrounding.forEach((atomPos) => {
-        const connector = new THREE.Line(new THREE.BufferGeometry().setFromPoints([position, atomPos]), lineMat);
-        connector.renderOrder = 18;
-        group.add(connector);
-      });
-      if (surrounding.length >= 3) addPolyhedronCage(group, surrounding, position, kind, color, 0.45);
-
-    }
+    meshes.push(sphere);
   });
+  return { positions, meshes };
+}
+
+export function renderGapSelectionLayer(
+  layer: THREE.Group,
+  crystal: CrystalType,
+  kind: 'tetra' | 'octa',
+  positions: THREE.Vector3[],
+  renderedAtoms: RenderAtom[],
+  selectedIndex = 0,
+) {
+  clearGroup(layer);
+  if (positions.length === 0) return 0;
+  const normalizedIndex = Math.min(Math.max(selectedIndex, 0), positions.length - 1);
+  const position = positions[normalizedIndex];
+  const { color } = gapVisualStyle(kind);
+  const surrounding = findSurroundingAtoms(crystal, position, kind, renderedAtoms);
+  const lineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.92, depthTest: false, fog: false });
+  surrounding.forEach((atomPos) => {
+    const connector = new THREE.Line(new THREE.BufferGeometry().setFromPoints([position, atomPos]), lineMat);
+    connector.renderOrder = 18;
+    layer.add(connector);
+  });
+  if (surrounding.length >= 3) addPolyhedronCage(layer, surrounding, position, kind, color, 0.45);
+  return surrounding.length;
 }
 
 export function findSurroundingAtoms(crystal: CrystalType, gapPos: THREE.Vector3, kind: 'tetra' | 'octa', renderedAtoms?: RenderAtom[]): THREE.Vector3[] {

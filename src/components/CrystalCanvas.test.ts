@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   AUTO_ROTATE_RADIANS_PER_FRAME,
+  addGapTargets,
+  applyCoordinationAtomVisuals,
   atomOpacityForModule,
   atomRenderRadius,
   atomVisualStyle,
@@ -28,6 +30,8 @@ import {
   packingPlaneColor,
   packingDirectionStyle,
   polyhedronEdges,
+  renderGapSelectionLayer,
+  sceneStructureKey,
   stackingSequence,
 } from './CrystalCanvas';
 import { crystals, defaultSettings, modules } from '../data/crystals';
@@ -40,6 +44,10 @@ import {
 
 function positionKey(point: THREE.Vector3) {
   return point.toArray().map((value) => value.toFixed(6)).join(',');
+}
+
+function renderPositionKey(point: THREE.Vector3) {
+  return point.toArray().map((coordinate) => Math.round(coordinate * 1000)).join(',');
 }
 
 function nearestDistance(crystal: CrystalType) {
@@ -264,6 +272,65 @@ describe('interstitial topology and visuals', () => {
     getGapPositions('FCC', 'octa', 2).forEach((site) => {
       expect(Math.min(...atoms.map((atom) => atom.distanceTo(site)))).toBeGreaterThan(1e-5);
     });
+  });
+});
+
+describe('selection layer continuity', () => {
+  it.each([
+    ['tetra', 4],
+    ['octa', 6],
+  ] as const)('updates only the FCC %s selection cage with %i connectors', (kind, connectorCount) => {
+    const root = new THREE.Group();
+    const selectionLayer = new THREE.Group();
+    const pickables: THREE.Object3D[] = [];
+    const atoms = createAtoms('FCC', 1, false, kind);
+    const { positions, meshes } = addGapTargets(root, 'FCC', kind, 1, pickables);
+    root.add(selectionLayer);
+    const originalTargets = [...meshes];
+    root.rotation.z = 0.73;
+
+    expect(renderGapSelectionLayer(selectionLayer, 'FCC', kind, positions, atoms, 0)).toBe(connectorCount);
+    expect(renderGapSelectionLayer(selectionLayer, 'FCC', kind, positions, atoms, 1)).toBe(connectorCount);
+    expect(root.rotation.z).toBeCloseTo(0.73, 8);
+    expect(meshes).toEqual(originalTargets);
+    originalTargets.forEach((mesh) => expect(mesh.parent).toBe(root));
+  });
+
+  it('reuses coordination atom meshes while applying a new periodic shell', () => {
+    const root = new THREE.Group();
+    const atoms = createAtoms('FCC', 1, false, 'coordination');
+    const atomMeshes = new Map<string, THREE.Mesh>();
+    atoms.forEach((atom) => {
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2),
+        new THREE.MeshPhongMaterial({ color: coordinationVisualStyle.baseColor }),
+      );
+      mesh.position.copy(atom.position);
+      root.add(mesh);
+      atomMeshes.set(renderPositionKey(atom.position), mesh);
+    });
+    const originalMeshes = [...atomMeshes.values()];
+    const firstShell = coordinationShell(atoms, 'FCC', atoms[0].position)!;
+    root.rotation.z = 1.17;
+
+    applyCoordinationAtomVisuals(atomMeshes, firstShell);
+    expect((atomMeshes.get(renderPositionKey(firstShell.center))!.material as THREE.MeshPhongMaterial).color.getHexString()).toBe('fff65c');
+    expect([...atomMeshes.values()].some((mesh) => (
+      mesh.material as THREE.MeshPhongMaterial
+    ).color.getHexString() === 'ff4f57')).toBe(true);
+
+    const secondShell = coordinationShell(atoms, 'FCC', atoms[atoms.length - 1].position)!;
+    applyCoordinationAtomVisuals(atomMeshes, secondShell);
+    expect(root.rotation.z).toBeCloseTo(1.17, 8);
+    expect([...atomMeshes.values()]).toEqual(originalMeshes);
+    originalMeshes.forEach((mesh) => expect(mesh.parent).toBe(root));
+  });
+
+  it('does not rebuild the scene when only auto rotation changes', () => {
+    const rotating = { ...defaultSettings, autoRotate: true };
+    const paused = { ...defaultSettings, autoRotate: false };
+    expect(sceneStructureKey('FCC', 'tetra', rotating)).toBe(sceneStructureKey('FCC', 'tetra', paused));
+    expect(sceneStructureKey('FCC', 'tetra', rotating)).not.toBe(sceneStructureKey('FCC', 'octa', rotating));
   });
 });
 
