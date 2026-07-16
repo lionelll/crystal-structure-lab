@@ -3,6 +3,7 @@ import type { CrystalType } from './latticeGeometry';
 export type { CrystalType } from './latticeGeometry';
 export type ModuleId =
   | 'cell'
+  | 'stacking'
   | 'bravais'
   | 'packing'
   | 'coordination'
@@ -31,6 +32,7 @@ export interface CrystalInfo {
   denseDirection: string;
   teaching: string;
   bravais: string;
+  stacking: string;
   packing: string;
   gaps: {
     tetra: string;
@@ -46,12 +48,13 @@ export interface ModuleItem {
 }
 
 export const modules: ModuleItem[] = [
-  { id: 'cell', index: 1, title: '晶胞模型', summary: '展示基体原子、晶胞框线、坐标轴和模型类型切换。' },
-  { id: 'bravais', index: 2, title: '空间点阵', summary: '用独立格点展示布拉菲点阵，并可扩展观察平移重复特征。' },
-  { id: 'packing', index: 3, title: '密排面 / 密排方向', summary: '高亮典型密排面，并用箭头标示密排方向。' },
-  { id: 'coordination', index: 4, title: '配位数', summary: '选择中心原子，按距离高亮最近邻并编号。' },
-  { id: 'tetra', index: 5, title: '四面体间隙', summary: '显示四面体间隙位置和围成间隙的基体原子。' },
-  { id: 'octa', index: 6, title: '八面体间隙', summary: '显示八面体间隙位置和多面体连接。' },
+  { id: 'cell', index: 1, title: '晶胞模型', summary: '展示基体原子、晶胞框线和晶系坐标轴。' },
+  { id: 'stacking', index: 2, title: '堆垛模型', summary: '展示晶体沿典型方向的逐层堆垛关系。' },
+  { id: 'bravais', index: 3, title: '空间点阵', summary: '用独立格点展示布拉菲点阵，并可扩展观察平移重复特征。' },
+  { id: 'packing', index: 4, title: '密排面 / 密排方向', summary: '高亮典型密排面，并用箭头标示密排方向。' },
+  { id: 'coordination', index: 5, title: '配位数', summary: '选择中心原子，按距离高亮最近邻。' },
+  { id: 'tetra', index: 6, title: '四面体间隙', summary: '显示四面体间隙位置和围成间隙的基体原子。' },
+  { id: 'octa', index: 7, title: '八面体间隙', summary: '显示八面体间隙位置和多面体连接。' },
 ];
 
 
@@ -68,6 +71,7 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     denseDirection: '<110>',
     teaching: 'FCC 的密排面为 {111}，密排方向为 <110>，每个原子周围有 12 个等距离最近邻原子，密排层按 ABCABC 顺序堆垛。',
     bravais: '角点和六个面心点共同构成面心立方点阵。2×2×2 阵列能直观看到面心点沿相邻晶胞连续平移。',
+    stacking: 'FCC 沿 <111> 方向由密排层按 ABCABC 顺序堆垛，相邻层占据不同的三角孔位置。',
     packing: '面心立方的 {111} 面呈三角密排，面内原子沿 <110> 方向相切排列。',
     gaps: {
       tetra: 'FCC 每个晶胞含 8 个四面体间隙，典型坐标为 (1/4,1/4,1/4)。',
@@ -86,6 +90,7 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     denseDirection: '<111>',
     teaching: 'BCC 的原子沿体对角线相切，配位数为 8。它不是密排结构，{110} 是原子排列最密的晶面。',
     bravais: '八个角点加一个体心点构成体心立方点阵，中心点与角点沿体对角线重复。',
+    stacking: 'BCC 不是密排结构。沿 [001] 观察时，角点方形层与偏移半个晶格的体心层交替出现。',
     packing: 'BCC 不是密排结构。{110} 是其最密排面（非真正密排面），<111> 是最密方向。',
     gaps: {
       tetra: 'BCC 四面体间隙较多但不规则，碳进入后会引起显著畸变。',
@@ -104,6 +109,7 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     denseDirection: '<11-20>',
     teaching: 'HCP 与 FCC 都属于密排结构，配位数均为 12。两者的主要区别是密排层堆垛方式：HCP 为 ABAB，FCC 为 ABCABC。',
     bravais: 'HCP 可通过六方柱状晶胞理解，底面为密排六角层，中间层错位嵌入。',
+    stacking: 'HCP 沿 c 轴由密排层按 ABAB 顺序堆垛，第三层回到第一层的正上方。',
     packing: 'HCP 的密排面是基面 {0001}，密排方向在基面内沿 <11-20>。',
     gaps: {
       tetra: 'HCP 的四面体间隙位于上下密排层之间，与 FCC 数量关系类似。',

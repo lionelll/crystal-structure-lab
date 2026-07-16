@@ -12,6 +12,7 @@ interface Props {
 
 const moduleIcons: Record<ModuleId, Parameters<typeof Icon>[0]['name']> = {
   cell: 'cube',
+  stacking: 'layers',
   bravais: 'lattice',
   packing: 'plane',
   coordination: 'nodes',
@@ -68,7 +69,7 @@ export function ControlPanel({ activeModule, crystal, settings, onCrystalChange,
         </div>
         <div className="display-settings-tab">
           <div className="switch-list">
-            <Toggle checked={settings.showSupercell} label="显示相邻晶胞（2×2×2）" onChange={(checked) => patch({ showSupercell: checked })} />
+            <Toggle disabled={activeModule === 'stacking'} checked={settings.showSupercell} label="显示相邻晶胞（2×2×2）" onChange={(checked) => patch({ showSupercell: checked })} />
           </div>
         </div>
       </section>
@@ -76,10 +77,10 @@ export function ControlPanel({ activeModule, crystal, settings, onCrystalChange,
   );
 }
 
-function Toggle({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) {
+function Toggle({ checked, disabled = false, label, onChange }: { checked: boolean; disabled?: boolean; label: string; onChange: (checked: boolean) => void }) {
   return (
-    <label className="toggle-row">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <label className={`toggle-row ${disabled ? 'disabled' : ''}`}>
+      <input type="checkbox" disabled={disabled} checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span className="fake-check" />
       <span>{label}</span>
     </label>

@@ -45,7 +45,7 @@ button { border: 0; color: inherit; cursor: pointer; }
 }
 .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .brand-mark { width: 54px; height: 54px; color: #1588ff; display: grid; place-items: center; }
-.brand-mark svg { width: 52px; height: 52px; filter: drop-shadow(0 0 12px rgba(21,136,255,.55)); }
+.brand-mark img { width: 100%; height: 100%; object-fit: contain; transform: scale(1.55); filter: drop-shadow(0 0 11px rgba(66,166,226,.28)); }
 .brand h1 { margin: 0; font-size: 25px; line-height: 1.1; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .brand span { display: block; margin-top: 7px; color: #bdc9d8; font-size: 13px; font-weight: 600; }
 .top-actions { justify-self: end; display: flex; align-items: center; gap: 14px; min-width: 0; }
@@ -82,6 +82,7 @@ button { border: 0; color: inherit; cursor: pointer; }
 .panel-heading svg { width: 18px; height: 18px; }
 .switch-list { display: grid; gap: 10px; padding: 0 18px; }
 .toggle-row { display: grid; grid-template-columns: 22px 1fr; align-items: center; gap: 9px; color: #dce8f5; font-size: 14px; cursor: pointer; }
+.toggle-row.disabled { opacity: .45; cursor: not-allowed; }
 .toggle-row input { position: absolute; opacity: 0; pointer-events: none; }
 .fake-check { width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(209,226,245,.64); background: rgba(255,255,255,.02); position: relative; }
 .toggle-row input:checked + .fake-check { background: #0f84f6; border-color: #33a1ff; }
@@ -90,7 +91,6 @@ button { border: 0; color: inherit; cursor: pointer; }
 .stage-panel { min-height: 0; border: 1px solid var(--line-strong); border-radius: 9px; background: radial-gradient(circle at 52% 42%, rgba(40, 133, 255, .12), transparent 24rem), rgba(5, 13, 22, .92); overflow: hidden; position: relative; }
 .stage-heading { position: absolute; z-index: 4; top: 0; left: 0; right: 0; min-height: 68px; display: flex; align-items: center; gap: 13px; padding: 0 26px; color: #eef5ff; font-size: 18px; pointer-events: none; }
 .stage-heading::after { content: ''; position: absolute; left: 24px; right: 24px; bottom: 0; height: 1px; background: linear-gradient(90deg, rgba(139,164,194,.16), transparent); }
-.stage-heading svg { width: 29px; height: 29px; color: #15a4ff; }
 .stage-heading strong { font-weight: 800; }
 .viewport-wrap, .three-mount { width: 100%; height: 100%; position: relative; }
 .three-mount canvas { display: block; width: 100%; height: 100%; }
@@ -125,7 +125,7 @@ button { border: 0; color: inherit; cursor: pointer; }
 @media (max-width: 520px) {
   .brand { gap: 9px; }
   .brand-mark { width: 34px; height: 34px; }
-  .brand-mark svg { width: 32px; height: 32px; }
+  .brand-mark img { width: 100%; height: 100%; }
   .brand span { font-size: 11px; }
   .top-actions button { gap: 4px; padding: 0 4px; font-size: 12px; }
   .top-actions svg { width: 18px; height: 18px; }

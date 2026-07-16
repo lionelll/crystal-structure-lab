@@ -13,6 +13,7 @@ import {
   coordinationTransitionEase,
   coordinationVisualStyle,
   coordinationShell,
+  createStackingAtoms,
   createAtoms,
   createBravaisSites,
   deduplicateAtoms,
@@ -22,9 +23,12 @@ import {
   gapVisualStyle,
   getGapLabel,
   getGapPositions,
+  crystalAxisVectors,
   nearestNeighborBondPairs,
+  packingPlaneColor,
   packingDirectionStyle,
   polyhedronEdges,
+  stackingSequence,
 } from './CrystalCanvas';
 import { crystals, defaultSettings, modules } from '../data/crystals';
 import {
@@ -51,14 +55,15 @@ function nearestDistance(crystal: CrystalType) {
 }
 
 describe('module and settings cleanup', () => {
-  it('keeps exactly the six requested modules in order', () => {
+  it('keeps the seven requested modules in order', () => {
     expect(modules.map(({ id, index }) => [id, index])).toEqual([
       ['cell', 1],
-      ['bravais', 2],
-      ['packing', 3],
-      ['coordination', 4],
-      ['tetra', 5],
-      ['octa', 6],
+      ['stacking', 2],
+      ['bravais', 3],
+      ['packing', 4],
+      ['coordination', 5],
+      ['tetra', 6],
+      ['octa', 7],
     ]);
   });
 
@@ -238,6 +243,57 @@ describe('interstitial topology and visuals', () => {
     expect(surrounding).toHaveLength(count);
     expect(new Set(surrounding.map(positionKey)).size).toBe(count);
   });
+
+  it.each([
+    ['FCC', 'tetra'],
+    ['FCC', 'octa'],
+    ['HCP', 'tetra'],
+    ['HCP', 'octa'],
+  ] as const)('%s %s 2x2x2 cage endpoints match rendered atom centers', (crystal, kind) => {
+    const atoms = createAtoms(crystal, 2, false, kind);
+    const sites = getGapPositions(crystal, kind, 2);
+    const renderedKeys = new Set(atoms.map((atom) => positionKey(atom.position)));
+    expect(sites.length).toBeGreaterThan(getGapPositions(crystal, kind, 1).length);
+    const surrounding = findSurroundingAtoms(crystal, sites[0], kind, atoms);
+    expect(surrounding).toHaveLength(kind === 'tetra' ? 4 : 6);
+    surrounding.forEach((position) => expect(renderedKeys.has(positionKey(position))).toBe(true));
+  });
+
+  it('keeps FCC 2x2x2 octahedral sites separate from matrix atoms', () => {
+    const atoms = createAtoms('FCC', 2, false, 'octa').map((atom) => atom.position);
+    getGapPositions('FCC', 'octa', 2).forEach((site) => {
+      expect(Math.min(...atoms.map((atom) => atom.distanceTo(site)))).toBeGreaterThan(1e-5);
+    });
+  });
+});
+
+describe('stacking models', () => {
+  it('uses ABC stacking for FCC and AB stacking for BCC/HCP', () => {
+    expect(stackingSequence('FCC')).toEqual(['A', 'B', 'C', 'A']);
+    expect(stackingSequence('BCC')).toEqual(['A', 'B', 'A']);
+    expect(stackingSequence('HCP')).toEqual(['A', 'B', 'A']);
+  });
+
+  it.each([
+    ['FCC', 4],
+    ['BCC', 3],
+    ['HCP', 3],
+  ] as const)('%s uses one conventional cell across %i stacking layers', (crystal, layerCount) => {
+    const atoms = createStackingAtoms(crystal);
+    expect(atoms).toHaveLength(createAtoms(crystal, 1, false, 'cell').length);
+    expect(new Set(atoms.map(({ position }) => position.z.toFixed(6))).size).toBe(layerCount);
+    stackingSequence(crystal).forEach((layer) => {
+      expect(atoms.some((atom) => atom.layer === layer)).toBe(true);
+    });
+    expect(cellFrameRepeat(crystal, 'stacking', false, true)).toBe(1);
+  });
+
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s keeps the same camera scale as the cell model', (crystal) => {
+    const stacking = cameraPreset(crystal, 1, 'stacking');
+    const cell = cameraPreset(crystal, 1, 'cell');
+    expect(stacking.position).toEqual(cell.position);
+    expect(stacking.target).toEqual(cell.target);
+  });
 });
 
 describe('coordination shells', () => {
@@ -273,6 +329,20 @@ describe('coordination shells', () => {
 });
 
 describe('packing and camera presets', () => {
+  it('uses the FCC blue for every packing plane', () => {
+    expect(packingPlaneColor).toBe('#3B82F6');
+  });
+
+  it('uses three 120-degree basal axes and a vertical c-axis for HCP', () => {
+    const axes = crystalAxisVectors('HCP');
+    const basal = axes.slice(0, 3).map(({ direction }) => new THREE.Vector3(...direction).normalize());
+    expect(axes.map(({ label }) => label)).toEqual(['a₁', 'a₂', 'a₃', 'c']);
+    basal.forEach((axis) => expect(axis.z).toBeCloseTo(0, 8));
+    expect(basal[0].angleTo(basal[1])).toBeCloseTo((2 * Math.PI) / 3, 8);
+    expect(basal[1].angleTo(basal[2])).toBeCloseTo((2 * Math.PI) / 3, 8);
+    expect(basal[2].angleTo(basal[0])).toBeCloseTo((2 * Math.PI) / 3, 8);
+    expect(axes[3].direction).toEqual([0, 0, 1]);
+  });
   it('defines three corners and three face centers on FCC {111}', () => {
     const sites = fcc111PackingSites();
     expect(sites.filter((site) => site.role === 'corner')).toHaveLength(3);

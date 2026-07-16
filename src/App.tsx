@@ -4,6 +4,7 @@ import { CrystalCanvas, type CrystalCanvasHandle } from './components/CrystalCan
 import { Icon } from './components/Icons';
 import { InfoPanel } from './components/InfoPanel';
 import { defaultSettings, modules, type CrystalType, type DisplaySettings, type ModuleId } from './data/crystals';
+import brandLogo from './assets/brand-logo.png';
 
 export default function App() {
   const [crystal, setCrystal] = useState<CrystalType>('FCC');
@@ -21,7 +22,7 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark"><Icon name="cube" /></div>
+          <div className="brand-mark"><img src={brandLogo} alt="" /></div>
           <div>
             <h1>材科基 · 晶体结构 3D 可视化实验室</h1>
             <span>Materials Fundamentals Crystal Lab</span>
@@ -48,8 +49,7 @@ export default function App() {
         <section className="stage-column">
           <div className="stage-panel">
             <div className="stage-heading">
-              <Icon name="cube" />
-              <span>功能模块：<strong>{activeTitle}</strong></span>
+              <strong>{activeTitle}</strong>
             </div>
             <CrystalCanvas
               ref={canvasRef}

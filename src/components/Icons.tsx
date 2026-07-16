@@ -2,6 +2,7 @@ import type { ReactElement, SVGProps } from 'react';
 
 type IconName =
   | 'cube'
+  | 'layers'
   | 'lattice'
   | 'plane'
   | 'nodes'
@@ -22,6 +23,7 @@ type IconName =
 
 const paths: Record<IconName, ReactElement> = {
   cube: <><path d="M12 2 4 6.5v11L12 22l8-4.5v-11L12 2Z" /><path d="M4 6.5 12 11l8-4.5" /><path d="M12 11v11" /></>,
+  layers: <><path d="m12 3-8 4 8 4 8-4-8-4Z" /><path d="m4 12 8 4 8-4" /><path d="m4 17 8 4 8-4" /></>,
   lattice: <><circle cx="7" cy="7" r="2" /><circle cx="17" cy="7" r="2" /><circle cx="7" cy="17" r="2" /><circle cx="17" cy="17" r="2" /><path d="M9 7h6M7 9v6M17 9v6M9 17h6" /></>,
   plane: <><path d="M4 17 12 4l8 13-8 4-8-4Z" /><path d="M8 14h8M12 4v17" /></>,
   nodes: <><circle cx="12" cy="12" r="2.5" /><circle cx="5" cy="5" r="2" /><circle cx="19" cy="5" r="2" /><circle cx="5" cy="19" r="2" /><circle cx="19" cy="19" r="2" /><path d="m7 7 3 3m7-3-3 3m-7 7 3-3m7 3-3-3" /></>,

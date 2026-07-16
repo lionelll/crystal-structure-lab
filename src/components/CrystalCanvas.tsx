@@ -99,7 +99,39 @@ export const packingDirectionStyle = {
   headWidth: 0.19,
 } as const;
 
+export const packingPlaneColor = '#3B82F6';
+
+export interface CrystalAxisVector {
+  label: string;
+  direction: Vec3Tuple;
+  color: number;
+}
+
+export function crystalAxisVectors(crystal: CrystalType): CrystalAxisVector[] {
+  if (crystal === 'HCP') {
+    return [
+      { label: 'a₁', direction: [1, 0, 0], color: 0xff554f },
+      { label: 'a₂', direction: [-0.5, Math.sqrt(3) / 2, 0], color: 0x3bd56f },
+      { label: 'a₃', direction: [-0.5, -Math.sqrt(3) / 2, 0], color: 0xffa43a },
+      { label: 'c', direction: [0, 0, 1], color: 0x4385ff },
+    ];
+  }
+  return [
+    { label: 'X', direction: [1, 0, 0], color: 0xff554f },
+    { label: 'Y', direction: [0, 1, 0], color: 0x3bd56f },
+    { label: 'Z', direction: [0, 0, 1], color: 0x4385ff },
+  ];
+}
+
+export type StackingLayerLabel = 'A' | 'B' | 'C';
+
+export function stackingSequence(crystal: CrystalType): StackingLayerLabel[] {
+  if (crystal === 'FCC') return ['A', 'B', 'C', 'A'];
+  return ['A', 'B', 'A'];
+}
+
 export function cellFrameRepeat(crystal: CrystalType, activeModule: ModuleId, hasCoordinationTarget: boolean, showSupercell: boolean) {
+  if (activeModule === 'stacking') return 1;
   if (showSupercell) return 2;
   return activeModule === 'coordination' && hasCoordinationTarget ? 2 : 1;
 }
@@ -350,7 +382,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     root.rotation.set(0, 0, 0);
 
     const repeat = settings.showSupercell ? 2 : 1;
-    const atoms = activeModule === 'bravais'
+    const standaloneModule = activeModule === 'bravais' || activeModule === 'stacking';
+    const atoms = standaloneModule
       ? []
       : createAtoms(crystal, repeat, settings.exploded, activeModule);
     const radius = atomRenderRadius(crystal, settings.modelStyle);
@@ -370,14 +403,16 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       : [];
     const frameRepeat = cellFrameRepeat(crystal, activeModule, Boolean(coordinationTarget), settings.showSupercell);
     const frameGroup = new THREE.Group();
-    addCellFrames(frameGroup, crystal, frameRepeat, activeModule === 'bravais');
+    if (activeModule !== 'stacking') addCellFrames(frameGroup, crystal, frameRepeat, activeModule === 'bravais');
     const animateCoordinationFrames = activeModule === 'coordination'
       && Boolean(coordinationTarget)
       && !settings.showSupercell;
     if (animateCoordinationFrames) setCellFrameGroupProgress(frameGroup, 0);
     root.add(frameGroup);
     coordinationFrameGroupRef.current = frameGroup;
-    if (activeModule === 'bravais') {
+    if (activeModule === 'stacking') {
+      addStackingModel(root, crystal, radius);
+    } else if (activeModule === 'bravais') {
       addBravaisSites(root, createBravaisSites(crystal, repeat), sectionPlanes);
     } else {
       if (settings.modelStyle === 'ball-stick') addBonds(root, atoms, crystal, sectionPlanes);
@@ -400,8 +435,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       coordAnimRef.current = { objects: [], startTime: 0 };
       centerPulseRef.current = null;
     }
-    if (activeModule === 'tetra') addGaps(root, crystal, 'tetra', pickablesRef.current, selectedGapIndex);
-    if (activeModule === 'octa') addGaps(root, crystal, 'octa', pickablesRef.current, selectedGapIndex);
+    if (activeModule === 'tetra') addGaps(root, crystal, 'tetra', repeat, atoms, pickablesRef.current, selectedGapIndex);
+    if (activeModule === 'octa') addGaps(root, crystal, 'octa', repeat, atoms, pickablesRef.current, selectedGapIndex);
     if (settings.sectionView) addSectionPlane(root, crystal);
   }, [activeModule, coordinationTarget, crystal, selectedGapIndex, settings]);
 
@@ -568,6 +603,64 @@ export function createBravaisSites(crystal: CrystalType, repeat: number): Render
   return deduplicateAtoms(sites);
 }
 
+export interface StackingAtom {
+  position: THREE.Vector3;
+  layer: StackingLayerLabel;
+}
+
+export function createStackingAtoms(crystal: CrystalType): StackingAtom[] {
+  const cellAtoms = createAtoms(crystal, 1, false, 'cell');
+  const layerCoordinate = (position: THREE.Vector3) => crystal === 'FCC'
+    ? position.x + position.y + position.z
+    : position.z;
+  const layerLevels = [...new Set(cellAtoms.map(({ position }) => layerCoordinate(position).toFixed(6)))]
+    .map(Number)
+    .sort((a, b) => a - b);
+  const sequence = stackingSequence(crystal);
+  const fccToStackingAxis = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(1, 1, 1).normalize(),
+    new THREE.Vector3(0, 0, 1),
+  );
+
+  return cellAtoms.map(({ position }) => {
+    const coordinate = layerCoordinate(position);
+    const layerIndex = layerLevels.reduce((closest, value, index) => (
+      Math.abs(value - coordinate) < Math.abs(layerLevels[closest] - coordinate) ? index : closest
+    ), 0);
+    const stackingPosition = position.clone();
+    if (crystal === 'FCC') stackingPosition.applyQuaternion(fccToStackingAxis);
+    return { position: stackingPosition, layer: sequence[layerIndex] };
+  });
+}
+
+function addStackingModel(group: THREE.Group, crystal: CrystalType, atomRadius: number) {
+  const atoms = createStackingAtoms(crystal);
+  const sphere = new THREE.SphereGeometry(atomRadius, 32, 24);
+  const material = createAtomMaterial(atomVisualStyle.baseColor, {
+    emissive: atomVisualStyle.bodyLiftColor,
+    emissiveIntensity: atomVisualStyle.bodyLiftIntensity,
+    fog: false,
+  });
+  atoms.forEach((atom) => {
+    const mesh = new THREE.Mesh(sphere, material);
+    mesh.position.copy(atom.position);
+    group.add(mesh);
+  });
+
+  const layerGroups = [...atoms.reduce((groups, atom) => {
+    const key = atom.position.z.toFixed(6);
+    if (!groups.has(key)) groups.set(key, { layer: atom.layer, z: atom.position.z });
+    return groups;
+  }, new Map<string, { layer: StackingLayerLabel; z: number }>()).values()].sort((a, b) => a.z - b.z);
+  const labelX = Math.min(...atoms.map((atom) => atom.position.x)) - 0.68;
+  layerGroups.forEach(({ layer, z }) => {
+    const label = createTextSprite(layer, '#ffffff', 34);
+    label.position.set(labelX, 0, z);
+    label.scale.set(0.5, 0.5, 1);
+    group.add(label);
+  });
+}
+
 function cubicPoint(point: Vec3Tuple, repeat: number) {
   return new THREE.Vector3((point[0] - repeat / 2) * cellScale, (point[1] - repeat / 2) * cellScale, (point[2] - repeat / 2) * cellScale);
 }
@@ -720,7 +813,7 @@ function addHcpFrame(group: THREE.Group, offset: THREE.Vector3, vivid: boolean) 
 }
 
 function addPacking(group: THREE.Group, crystal: CrystalType) {
-  const planeColor = crystal === 'BCC' ? '#f28a31' : crystal === 'HCP' ? '#35c86f' : '#3B82F6';
+  const planeColor = packingPlaneColor;
   const dirColor = '#EF4444';
   const planeOpacity = 0.6;
   let vertices: THREE.Vector3[];
@@ -938,14 +1031,16 @@ export function polyhedronEdges(vertices: THREE.Vector3[], center: THREE.Vector3
 function addPolyhedronCage(group: THREE.Group, vertices: THREE.Vector3[], center: THREE.Vector3, kind: 'tetra' | 'octa', color: THREE.ColorRepresentation, opacity: number) {
   const geometry = new THREE.BufferGeometry().setFromPoints(vertices);
   geometry.setIndex(polyhedronEdges(vertices, center, kind).flat());
-  group.add(new THREE.LineSegments(
+  const cage = new THREE.LineSegments(
     geometry,
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity }),
-  ));
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthTest: false, fog: false }),
+  );
+  cage.renderOrder = 18;
+  group.add(cage);
 }
 
-function addGaps(group: THREE.Group, crystal: CrystalType, kind: 'tetra' | 'octa', pickables: THREE.Object3D[], selectedIndex = 0) {
-  const positions = getGapPositions(crystal, kind);
+function addGaps(group: THREE.Group, crystal: CrystalType, kind: 'tetra' | 'octa', repeat: number, renderedAtoms: RenderAtom[], pickables: THREE.Object3D[], selectedIndex = 0) {
+  const positions = getGapPositions(crystal, kind, repeat);
   const { radius, color } = gapVisualStyle(kind);
   const normalizedIndex = positions.length ? Math.min(selectedIndex, positions.length - 1) : 0;
   const geometry = new THREE.SphereGeometry(radius, 32, 24);
@@ -961,13 +1056,12 @@ function addGaps(group: THREE.Group, crystal: CrystalType, kind: 'tetra' | 'octa
     group.add(sphere);
     pickables.push(sphere);
     if (selected) {
-      const surrounding = findSurroundingAtoms(crystal, position, kind);
-      const lineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7 });
+      const surrounding = findSurroundingAtoms(crystal, position, kind, renderedAtoms);
+      const lineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.92, depthTest: false, fog: false });
       surrounding.forEach((atomPos) => {
-        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([position, atomPos]), lineMat));
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), new THREE.MeshBasicMaterial({ color }));
-        dot.position.copy(atomPos);
-        group.add(dot);
+        const connector = new THREE.Line(new THREE.BufferGeometry().setFromPoints([position, atomPos]), lineMat);
+        connector.renderOrder = 18;
+        group.add(connector);
       });
       if (surrounding.length >= 3) addPolyhedronCage(group, surrounding, position, kind, color, 0.45);
 
@@ -975,9 +1069,17 @@ function addGaps(group: THREE.Group, crystal: CrystalType, kind: 'tetra' | 'octa
   });
 }
 
-export function findSurroundingAtoms(crystal: CrystalType, gapPos: THREE.Vector3, kind: 'tetra' | 'octa'): THREE.Vector3[] {
+export function findSurroundingAtoms(crystal: CrystalType, gapPos: THREE.Vector3, kind: 'tetra' | 'octa', renderedAtoms?: RenderAtom[]): THREE.Vector3[] {
+  const count = kind === 'tetra' ? 4 : 6;
+  if (renderedAtoms) {
+    return uniqueVectors(renderedAtoms.map((atom) => atom.position.clone()))
+      .map((position) => ({ position, distance: position.distanceTo(gapPos) }))
+      .filter(({ distance }) => distance > 0.01)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, count)
+      .map(({ position }) => position);
+  }
   if (crystal === 'HCP') {
-    const count = kind === 'tetra' ? 4 : 6;
     const baseLocal = hcpCellAtoms(true).map((site) => new THREE.Vector3(...site.position));
     const allAtoms: THREE.Vector3[] = [];
     for (let ix = -1; ix <= 1; ix++) {
@@ -995,7 +1097,6 @@ export function findSurroundingAtoms(crystal: CrystalType, gapPos: THREE.Vector3
       .slice(0, count)
       .map((a) => a.pos);
   }
-  const count = kind === 'tetra' ? 4 : 6;
   const allPositions: THREE.Vector3[] = [];
   const base = crystal === 'FCC'
     ? [...cornerPositions, ...fccFacePositions]
@@ -1030,48 +1131,72 @@ function addAxes(group: THREE.Group, crystal: CrystalType) {
   const origin = crystal === 'HCP'
     ? new THREE.Vector3(-2.0, -2.1, -1.7)
     : new THREE.Vector3(-2.45, -2.1, -1.7);
-  const x = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), origin, 0.62, 0xff554f, 0.13, 0.08);
-  const y = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), origin, 0.62, 0x3bd56f, 0.13, 0.08);
-  const z = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), origin, 0.62, 0x4385ff, 0.13, 0.08);
-  group.add(x, y, z);
-  const lx = createTextSprite('X', '#ff554f', 28); lx.position.copy(origin.clone().add(new THREE.Vector3(0.78, 0, 0))); lx.scale.setScalar(0.24);
-  const ly = createTextSprite('Y', '#3bd56f', 28); ly.position.copy(origin.clone().add(new THREE.Vector3(0, 0.78, 0))); ly.scale.setScalar(0.24);
-  const lz = createTextSprite('Z', '#4385ff', 28); lz.position.copy(origin.clone().add(new THREE.Vector3(0, 0, 0.78))); lz.scale.setScalar(0.24);
-  group.add(lx, ly, lz);
+  const arrowLength = crystal === 'HCP' ? 0.76 : 0.62;
+  const labelDistance = crystal === 'HCP' ? 0.94 : 0.78;
+  const labelScale = crystal === 'HCP' ? 0.3 : 0.24;
+  crystalAxisVectors(crystal).forEach(({ label, direction, color }) => {
+    const vector = new THREE.Vector3(...direction).normalize();
+    group.add(new THREE.ArrowHelper(vector, origin, arrowLength, color, 0.15, 0.09));
+    const text = createTextSprite(label, `#${color.toString(16).padStart(6, '0')}`, 28);
+    text.position.copy(origin.clone().add(vector.multiplyScalar(labelDistance)));
+    text.scale.setScalar(labelScale);
+    group.add(text);
+  });
 }
 
-export function getGapPositions(crystal: CrystalType, kind: 'tetra' | 'octa') {
+export function getGapPositions(crystal: CrystalType, kind: 'tetra' | 'octa', repeat = 1) {
   if (crystal === 'HCP') {
-    return hcpGapPositions(kind).map((position) => new THREE.Vector3(...position));
+    const positions: THREE.Vector3[] = [];
+    for (let ix = 0; ix < repeat; ix++) {
+      for (let iy = 0; iy < repeat; iy++) {
+        for (let iz = 0; iz < repeat; iz++) {
+          const offset = new THREE.Vector3(...hcpCellOffset(ix, iy, iz, repeat));
+          hcpGapPositions(kind).forEach((position) => positions.push(new THREE.Vector3(...position).add(offset)));
+        }
+      }
+    }
+    return uniqueVectors(positions).sort((a, b) => a.lengthSq() - b.lengthSq());
   }
+  let fractions: Vec3Tuple[];
   if (crystal === 'FCC') {
     if (kind === 'tetra') {
-      return [[0.25,0.25,0.25],[0.75,0.25,0.25],[0.25,0.75,0.25],[0.25,0.25,0.75],
-              [0.75,0.75,0.25],[0.75,0.25,0.75],[0.25,0.75,0.75],[0.75,0.75,0.75]].map((p) => cubicPoint(p as Vec3Tuple, 1));
+      fractions = [[0.25,0.25,0.25],[0.75,0.25,0.25],[0.25,0.75,0.25],[0.25,0.25,0.75],
+        [0.75,0.75,0.25],[0.75,0.25,0.75],[0.25,0.75,0.75],[0.75,0.75,0.75]];
+    } else {
+      fractions = [
+        [0.5,0.5,0.5],
+        [0.5,0,0],[0.5,1,0],[0.5,0,1],[0.5,1,1],
+        [0,0.5,0],[1,0.5,0],[0,0.5,1],[1,0.5,1],
+        [0,0,0.5],[1,0,0.5],[0,1,0.5],[1,1,0.5],
+      ];
     }
-    return [
-      [0.5,0.5,0.5],
-      [0.5,0,0],[0.5,1,0],[0.5,0,1],[0.5,1,1],
-      [0,0.5,0],[1,0.5,0],[0,0.5,1],[1,0.5,1],
-      [0,0,0.5],[1,0,0.5],[0,1,0.5],[1,1,0.5],
-    ].map((p) => cubicPoint(p as Vec3Tuple, 1));
-  }
-  if (kind === 'tetra') {
-    return [
+  } else if (kind === 'tetra') {
+    fractions = [
       [0.5,0.25,0],[0.5,0.75,0],[0.25,0.5,0],[0.75,0.5,0],
       [0.5,0.25,1],[0.5,0.75,1],[0.25,0.5,1],[0.75,0.5,1],
       [0,0.5,0.25],[0,0.5,0.75],[0,0.25,0.5],[0,0.75,0.5],
       [1,0.5,0.25],[1,0.5,0.75],[1,0.25,0.5],[1,0.75,0.5],
       [0.5,0,0.25],[0.5,0,0.75],[0.25,0,0.5],[0.75,0,0.5],
       [0.5,1,0.25],[0.5,1,0.75],[0.25,1,0.5],[0.75,1,0.5],
-    ].map((p) => cubicPoint(p as Vec3Tuple, 1));
+    ];
+  } else {
+    fractions = [
+      [0.5,0.5,0],[0.5,0.5,1],[0.5,0,0.5],[0.5,1,0.5],[0,0.5,0.5],[1,0.5,0.5],
+      [0.5,0,0],[0.5,1,0],[0.5,0,1],[0.5,1,1],
+      [0,0.5,0],[1,0.5,0],[0,0.5,1],[1,0.5,1],
+      [0,0,0.5],[1,0,0.5],[0,1,0.5],[1,1,0.5],
+    ];
   }
-  return [
-    [0.5,0.5,0],[0.5,0.5,1],[0.5,0,0.5],[0.5,1,0.5],[0,0.5,0.5],[1,0.5,0.5],
-    [0.5,0,0],[0.5,1,0],[0.5,0,1],[0.5,1,1],
-    [0,0.5,0],[1,0.5,0],[0,0.5,1],[1,0.5,1],
-    [0,0,0.5],[1,0,0.5],[0,1,0.5],[1,1,0.5],
-  ].map((p) => cubicPoint(p as Vec3Tuple, 1));
+
+  const positions: THREE.Vector3[] = [];
+  for (let ix = 0; ix < repeat; ix++) {
+    for (let iy = 0; iy < repeat; iy++) {
+      for (let iz = 0; iz < repeat; iz++) {
+        fractions.forEach(([x, y, z]) => positions.push(cubicPoint([x + ix, y + iy, z + iz], repeat)));
+      }
+    }
+  }
+  return uniqueVectors(positions).sort((a, b) => a.lengthSq() - b.lengthSq());
 }
 
 export function getGapLabel(crystal: CrystalType, kind: 'tetra' | 'octa', index: number) {
