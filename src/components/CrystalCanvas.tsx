@@ -46,10 +46,13 @@ export function fcc110DirectionEndpoints(): [Vec3Tuple, Vec3Tuple] {
   return [[0, 1, 0], [1, 0, 0]];
 }
 
+export function bcc111DirectionEndpoints(): [Vec3Tuple, Vec3Tuple] {
+  return [[0, 0, 0], [1, 1, 1]];
+}
+
 export interface RenderAtom {
   position: THREE.Vector3;
   kind: 'base' | 'center' | 'face';
-  label?: string;
   highlight?: boolean;
 }
 
@@ -66,18 +69,40 @@ export const atomVisualStyle = {
   bodyLiftIntensity: 0.5,
   keyLightIntensity: 1.8,
   cubicSchematicRadiusOverA: 0.5 / 3.6,
-  hcpSchematicRadiusOverA: 0.5 / 1.8,
+  hcpSchematicRadiusOverA: ((0.5 / 3.6) * latticeGeometry.FCC.worldA) / latticeGeometry.HCP.worldA,
   ballStickRadiusScale: 0.6,
   bondRadius: 0.025,
 } as const;
 
 export const AUTO_ROTATE_RADIANS_PER_FRAME = 0.003;
+export const COORDINATION_TRANSITION_MS = 450;
+
+export function coordinationTransitionEase(progress: number) {
+  const clamped = Math.max(0, Math.min(1, progress));
+  return 1 - Math.pow(1 - clamped, 3);
+}
 
 export const coordinationVisualStyle = {
   centerColor: '#fff65c',
   neighborColor: '#ff4f57',
-  baseColor: '#174b70',
+  baseColor: atomVisualStyle.baseColor,
 } as const;
+
+export const bravaisPointStyle = {
+  color: '#7dd0ff',
+  size: 0.095,
+} as const;
+
+export const packingDirectionStyle = {
+  shaftRadius: 0.018,
+  headLength: 0.34,
+  headWidth: 0.19,
+} as const;
+
+export function cellFrameRepeat(crystal: CrystalType, activeModule: ModuleId, hasCoordinationTarget: boolean, showSupercell: boolean) {
+  if (showSupercell) return 2;
+  return activeModule === 'coordination' && hasCoordinationTarget ? 2 : 1;
+}
 
 const atomColor = new THREE.Color(atomVisualStyle.baseColor);
 const highlightColor = new THREE.Color('#fff65c');
@@ -124,6 +149,7 @@ interface AtomMaterialOptions {
   emissiveIntensity?: number;
   clippingPlanes?: THREE.Plane[];
   side?: THREE.Side;
+  fog?: boolean;
 }
 
 function createAtomMaterial(color: THREE.ColorRepresentation, options: AtomMaterialOptions = {}) {
@@ -138,6 +164,7 @@ function createAtomMaterial(color: THREE.ColorRepresentation, options: AtomMater
     opacity,
     clippingPlanes: options.clippingPlanes,
     side: options.side ?? THREE.FrontSide,
+    fog: options.fog ?? true,
   });
 }
 
@@ -155,6 +182,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   const coordAnimRef = useRef<{ objects: THREE.Object3D[]; startTime: number }>({ objects: [], startTime: 0 });
   const centerPulseRef = useRef<THREE.Mesh | null>(null);
   const dynamicClippingRef = useRef<DynamicClippingPlane[]>([]);
+  const coordinationFrameGroupRef = useRef<THREE.Group | null>(null);
+  const cameraTransitionFrameRef = useRef<number | null>(null);
 
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { moduleRef.current = activeModule; }, [activeModule]);
@@ -168,8 +197,11 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       const camera = cameraRef.current;
       const controls = controlsRef.current;
       if (!camera || !controls) return;
-      const repeat = settings.showSupercell ? 2 : 1;
+      if (cameraTransitionFrameRef.current !== null) cancelAnimationFrame(cameraTransitionFrameRef.current);
+      cameraTransitionFrameRef.current = null;
+      const repeat = cellFrameRepeat(crystal, activeModule, Boolean(coordinationTarget), settings.showSupercell);
       setDefaultCamera(camera, controls, crystal, repeat, activeModule);
+      setCellFrameGroupProgress(coordinationFrameGroupRef.current, 1);
       rootRef.current?.rotation.set(0, 0, 0);
     },
     capture() {
@@ -180,7 +212,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       link.href = renderer.domElement.toDataURL('image/png');
       link.click();
     },
-  }), [activeModule, crystal, settings.showSupercell]);
+  }), [activeModule, coordinationTarget, crystal, settings.showSupercell]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -299,6 +331,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     return () => {
       disposed = true;
       cancelAnimationFrame(frame);
+      if (cameraTransitionFrameRef.current !== null) cancelAnimationFrame(cameraTransitionFrameRef.current);
       resizeObserver.disconnect();
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       controls.dispose();
@@ -313,6 +346,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     clearGroup(root);
     pickablesRef.current = [];
     dynamicClippingRef.current = [];
+    coordinationFrameGroupRef.current = null;
     root.rotation.set(0, 0, 0);
 
     const repeat = settings.showSupercell ? 2 : 1;
@@ -320,12 +354,12 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       ? []
       : createAtoms(crystal, repeat, settings.exploded, activeModule);
     const radius = atomRenderRadius(crystal, settings.modelStyle);
-    const focusTarget = activeModule === 'coordination' && coordinationTarget
-      ? new THREE.Vector3(...coordinationTarget)
-      : new THREE.Vector3(0, 0, 0);
-    if (activeModule === 'coordination') markCoordinationFocus(atoms, focusTarget);
+    const focusTarget = coordinationTarget ? new THREE.Vector3(...coordinationTarget) : null;
+    if (activeModule === 'coordination' && focusTarget) markCoordinationFocus(atoms, focusTarget);
 
-    const coordShell = activeModule === 'coordination' ? coordinationShell(atoms, crystal, focusTarget) : null;
+    const coordShell = activeModule === 'coordination' && focusTarget
+      ? coordinationShell(atoms, crystal, focusTarget)
+      : null;
     const renderedAtomKeys = new Set(atoms.map((atom) => positionKey(atom.position)));
     const coordinationNeighborKeys = coordShell
       ? new Set(coordShell.nearest.map(({ atom }) => positionKey(atom.position)))
@@ -334,7 +368,15 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     const sectionPlanes = sectionSpec
       ? createDynamicClippingPlanes(root, [sectionSpec], dynamicClippingRef.current)
       : [];
-    addCellFrames(root, crystal, repeat, activeModule === 'bravais');
+    const frameRepeat = cellFrameRepeat(crystal, activeModule, Boolean(coordinationTarget), settings.showSupercell);
+    const frameGroup = new THREE.Group();
+    addCellFrames(frameGroup, crystal, frameRepeat, activeModule === 'bravais');
+    const animateCoordinationFrames = activeModule === 'coordination'
+      && Boolean(coordinationTarget)
+      && !settings.showSupercell;
+    if (animateCoordinationFrames) setCellFrameGroupProgress(frameGroup, 0);
+    root.add(frameGroup);
+    coordinationFrameGroupRef.current = frameGroup;
     if (activeModule === 'bravais') {
       addBravaisSites(root, createBravaisSites(crystal, repeat), sectionPlanes);
     } else {
@@ -344,7 +386,6 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         atoms,
         radius,
         atomOpacityForModule(activeModule),
-        true,
         activeModule,
         pickablesRef.current,
         sectionPlanes,
@@ -368,20 +409,49 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
-    const repeat = settings.showSupercell ? 2 : 1;
+    const repeat = cellFrameRepeat(crystal, activeModule, Boolean(coordinationTarget), settings.showSupercell);
     rootRef.current?.rotation.set(0, 0, 0);
-    setDefaultCamera(camera, controls, crystal, repeat, activeModule);
-  }, [activeModule, crystal, settings.showSupercell]);
+    if (cameraTransitionFrameRef.current !== null) cancelAnimationFrame(cameraTransitionFrameRef.current);
+    cameraTransitionFrameRef.current = null;
+
+    const shouldAnimate = activeModule === 'coordination'
+      && Boolean(coordinationTarget)
+      && !settings.showSupercell;
+    if (!shouldAnimate) {
+      setDefaultCamera(camera, controls, crystal, repeat, activeModule);
+      setCellFrameGroupProgress(coordinationFrameGroupRef.current, 1);
+      return;
+    }
+
+    const preset = cameraPreset(crystal, repeat, activeModule);
+    const startPosition = camera.position.clone();
+    const startTarget = controls.target.clone();
+    const startUp = camera.up.clone();
+    const endPosition = new THREE.Vector3(...preset.position);
+    const endTarget = new THREE.Vector3(...preset.target);
+    const endUp = new THREE.Vector3(...preset.up);
+    const startTime = performance.now();
+    const transition = (now: number) => {
+      const progress = Math.min(1, (now - startTime) / COORDINATION_TRANSITION_MS);
+      const eased = coordinationTransitionEase(progress);
+      camera.position.lerpVectors(startPosition, endPosition, eased);
+      camera.up.lerpVectors(startUp, endUp, eased).normalize();
+      controls.target.lerpVectors(startTarget, endTarget, eased);
+      controls.update();
+      setCellFrameGroupProgress(coordinationFrameGroupRef.current, eased);
+      if (progress < 1) cameraTransitionFrameRef.current = requestAnimationFrame(transition);
+      else cameraTransitionFrameRef.current = null;
+    };
+    cameraTransitionFrameRef.current = requestAnimationFrame(transition);
+    return () => {
+      if (cameraTransitionFrameRef.current !== null) cancelAnimationFrame(cameraTransitionFrameRef.current);
+      cameraTransitionFrameRef.current = null;
+    };
+  }, [activeModule, coordinationTarget, crystal, settings.showSupercell]);
 
   return (
     <div className="viewport-wrap">
       <div className="three-mount" ref={mountRef} />
-      {crystal === 'FCC' && activeModule === 'packing' && (
-        <div className="packing-summary">
-          <strong>{'{111}'} · {'<110>'}</strong>
-          <span>面内原子：3 角点 + 3 面心</span>
-        </div>
-      )}
     </div>
   );
 });
@@ -426,7 +496,7 @@ export function createAtoms(crystal: CrystalType, repeat: number, exploded: bool
         for (const atom of base) {
           const position = cubicPoint([atom.p[0] + ix, atom.p[1] + iy, atom.p[2] + iz], repeat);
           if (exploded) position.add(position.clone().normalize().multiplyScalar(0.42));
-          atoms.push({ position, kind: atom.kind, label: String(atoms.length) });
+          atoms.push({ position, kind: atom.kind });
         }
       }
     }
@@ -444,7 +514,7 @@ function createHcpAtoms(repeat: number, exploded: boolean, moduleId: ModuleId): 
         local.forEach((site) => {
           const position = new THREE.Vector3(...site.position).add(offset);
           if (exploded) position.add(position.clone().normalize().multiplyScalar(0.36));
-          atoms.push({ position, kind: site.kind, label: String(atoms.length) });
+          atoms.push({ position, kind: site.kind });
         });
       }
     }
@@ -454,11 +524,7 @@ function createHcpAtoms(repeat: number, exploded: boolean, moduleId: ModuleId): 
 
 function finalizeAtoms(atoms: RenderAtom[], moduleId: ModuleId) {
   const unique = deduplicateAtoms(atoms);
-  unique.forEach((atom, index) => { atom.label = String(index); });
-  if (moduleId === 'coordination') {
-    const closest = closestAtomIndex(unique, new THREE.Vector3(0, 0, 0));
-    if (closest >= 0) unique[closest].highlight = true;
-  }
+  if (moduleId !== 'coordination') unique.forEach((atom) => { atom.highlight = false; });
   return unique;
 }
 
@@ -499,9 +565,7 @@ export function createBravaisSites(crystal: CrystalType, repeat: number): Render
       }
     }
   }
-  const unique = deduplicateAtoms(sites);
-  unique.forEach((site, index) => { site.label = `P${index}`; });
-  return unique;
+  return deduplicateAtoms(sites);
 }
 
 function cubicPoint(point: Vec3Tuple, repeat: number) {
@@ -514,9 +578,9 @@ function markCoordinationFocus(atoms: RenderAtom[], target: THREE.Vector3) {
   if (closest >= 0) atoms[closest].highlight = true;
 }
 
-function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, showLabels: boolean, moduleId: ModuleId, pickables?: THREE.Object3D[], clippingPlanes: THREE.Plane[] = [], coordinationNeighborKeys?: Set<string>) {
+function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, moduleId: ModuleId, pickables?: THREE.Object3D[], clippingPlanes: THREE.Plane[] = [], coordinationNeighborKeys?: Set<string>) {
   const sphere = new THREE.SphereGeometry(radius, 32, 32);
-  atoms.forEach((atom, index) => {
+  atoms.forEach((atom) => {
     let color = atom.kind === 'face' ? faceColor : atomColor;
     if (moduleId === 'coordination') color = coordinationBaseColor;
     if (coordinationNeighborKeys?.has(positionKey(atom.position))) color = coordinationNeighborColor;
@@ -527,6 +591,7 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
       opacity,
       clippingPlanes,
       side: clippingPlanes.length > 0 ? THREE.DoubleSide : THREE.FrontSide,
+      fog: moduleId !== 'coordination',
     });
     const mesh = new THREE.Mesh(sphere, material);
     mesh.position.copy(atom.position);
@@ -539,15 +604,9 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
     group.add(mesh);
 
     if (atom.highlight) {
-      const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.18, 32, 16), new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.18, clippingPlanes }));
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.18, 32, 16), new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.18, clippingPlanes, fog: false }));
       halo.position.copy(atom.position);
       group.add(halo);
-    }
-    if (showLabels && (clippingPlanes.length === 0 || atom.position.x >= -1e-6)) {
-      const sprite = createTextSprite(atom.highlight ? '0' : atom.label ?? String(index), atom.highlight ? '#fff45a' : '#dbe7ff', atom.highlight ? 52 : 34);
-      sprite.position.copy(atom.position.clone().add(new THREE.Vector3(0, 0, radius * 0.55)));
-      sprite.scale.setScalar(atom.highlight ? 0.54 : 0.34);
-      group.add(sprite);
     }
   });
 }
@@ -580,22 +639,19 @@ function addBonds(group: THREE.Group, atoms: RenderAtom[], crystal: CrystalType,
 }
 
 function addBravaisSites(group: THREE.Group, sites: RenderAtom[], clippingPlanes: THREE.Plane[]) {
-  const geometry = new THREE.SphereGeometry(0.14, 24, 18);
-  sites.forEach((site) => {
-    const mesh = new THREE.Mesh(geometry, createAtomMaterial('#7dd0ff', {
-      emissive: '#0b5f83',
-      emissiveIntensity: 0.65,
-      clippingPlanes,
-    }));
-    mesh.position.copy(site.position);
-    group.add(mesh);
-    if (clippingPlanes.length === 0 || site.position.x >= -1e-6) {
-      const label = createTextSprite(site.label ?? '', '#bdeaff', 28);
-      label.position.copy(site.position.clone().add(new THREE.Vector3(0, 0, 0.24)));
-      label.scale.setScalar(0.27);
-      group.add(label);
-    }
+  const geometry = new THREE.BufferGeometry().setFromPoints(sites.map(({ position }) => position));
+  const material = new THREE.PointsMaterial({
+    color: bravaisPointStyle.color,
+    size: bravaisPointStyle.size,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.98,
+    map: createRoundPointTexture(),
+    alphaTest: 0.2,
+    depthWrite: false,
+    clippingPlanes,
   });
+  group.add(new THREE.Points(geometry, material));
 }
 
 function addCellFrames(group: THREE.Group, crystal: CrystalType, repeat: number, vivid: boolean) {
@@ -610,23 +666,52 @@ function addCellFrames(group: THREE.Group, crystal: CrystalType, repeat: number,
     }
     return;
   }
-  const material = new THREE.LineBasicMaterial({ color: vivid ? '#7dd0ff' : '#eef5ff', transparent: true, opacity: vivid ? 0.55 : 0.72 });
+  const material = new THREE.LineBasicMaterial({ color: vivid ? '#7dd0ff' : '#eef5ff', transparent: true, opacity: vivid ? 0.55 : 0.72, fog: false });
   for (let ix = 0; ix < repeat; ix++) {
     for (let iy = 0; iy < repeat; iy++) {
       for (let iz = 0; iz < repeat; iz++) {
-        const points = cornerPositions.map((p) => cubicPoint([p[0] + ix, p[1] + iy, p[2] + iz], repeat));
-        cubicEdges.forEach(([a, b]) => {
-          group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([points[a], points[b]]), material));
-        });
+        const center = new THREE.Vector3(
+          (ix - (repeat - 1) / 2) * cellScale,
+          (iy - (repeat - 1) / 2) * cellScale,
+          (iz - (repeat - 1) / 2) * cellScale,
+        );
+        addCubicFrameAtCenter(group, center, material);
       }
     }
   }
 }
 
+function setCellFrameGroupProgress(group: THREE.Group | null, progress: number) {
+  if (!group) return;
+  const clamped = Math.max(0, Math.min(1, progress));
+  const materials = new Set<THREE.LineBasicMaterial>();
+  group.traverse((object) => {
+    if (!(object instanceof THREE.Line)) return;
+    const material = object.material as THREE.LineBasicMaterial;
+    materials.add(material);
+  });
+  materials.forEach((material) => {
+    if (material.userData.fullOpacity === undefined) material.userData.fullOpacity = material.opacity;
+    material.opacity = Number(material.userData.fullOpacity) * clamped;
+    material.needsUpdate = true;
+  });
+}
+
+function addCubicFrameAtCenter(group: THREE.Group, center: THREE.Vector3, material: THREE.LineBasicMaterial) {
+  const points = cornerPositions.map(([x, y, z]) => new THREE.Vector3(
+    (x - 0.5) * cellScale + center.x,
+    (y - 0.5) * cellScale + center.y,
+    (z - 0.5) * cellScale + center.z,
+  ));
+  cubicEdges.forEach(([a, b]) => {
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([points[a], points[b]]), material));
+  });
+}
+
 function addHcpFrame(group: THREE.Group, offset: THREE.Vector3, vivid: boolean) {
   const bottom = hcpBottom.map((p) => p.clone().add(offset));
   const top = hcpTop.map((p) => p.clone().add(offset));
-  const material = new THREE.LineBasicMaterial({ color: vivid ? '#7dd0ff' : '#eef5ff', transparent: true, opacity: vivid ? 0.54 : 0.72 });
+  const material = new THREE.LineBasicMaterial({ color: vivid ? '#7dd0ff' : '#eef5ff', transparent: true, opacity: vivid ? 0.54 : 0.72, fog: false });
   for (let i = 0; i < 6; i++) {
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([bottom[i], bottom[(i + 1) % 6]]), material));
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([top[i], top[(i + 1) % 6]]), material));
@@ -658,97 +743,21 @@ function addPacking(group: THREE.Group, crystal: CrystalType) {
   geometry.computeVertexNormals();
   group.add(new THREE.Mesh(geometry, material));
 
-  const expandedOffset = crystal === 'HCP'
-    ? new THREE.Vector3(1.45, 0.45, 0.7)
-    : crystal === 'FCC'
-      ? new THREE.Vector3(2.2, 0.35, -1.8)
-      : new THREE.Vector3(1.1, 0.72, 0.9);
-  const expanded = new THREE.Mesh(
-    geometry.clone(),
-    new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false, wireframe: true }),
-  );
-  expanded.position.copy(expandedOffset);
-  group.add(expanded);
-
-  const centroid = vertices.reduce((sum, point) => sum.add(point.clone()), new THREE.Vector3()).multiplyScalar(1 / vertices.length);
-  const expandedCentroid = centroid.clone().add(expandedOffset);
-  const unfoldLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([centroid, expandedCentroid]),
-    new THREE.LineDashedMaterial({ color: planeColor, transparent: true, opacity: 0.68, dashSize: 0.08, gapSize: 0.05 }),
-  );
-  unfoldLine.computeLineDistances();
-  group.add(unfoldLine);
-
-  vertices.forEach((point) => {
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 10), new THREE.MeshBasicMaterial({ color: planeColor }));
-    dot.position.copy(point);
-    group.add(dot);
-    const ghost = dot.clone();
-    ghost.position.copy(point.clone().add(expandedOffset));
-    ghost.scale.setScalar(0.9);
-    group.add(ghost);
-  });
-
+  let start: THREE.Vector3;
+  let end: THREE.Vector3;
   if (crystal === 'FCC') {
-    const planeNormal = new THREE.Vector3(1, 1, 1).normalize();
-    const ringRadius = latticeGeometry.FCC.atomRadiusOverA * latticeGeometry.FCC.worldA;
-    fcc111PackingSites().forEach((site) => {
-      const position = cubicPoint(site.position, 1);
-      const color = site.role === 'face' ? '#fff65c' : '#7dd0ff';
-      const opacity = site.role === 'face' ? 0.98 : 0.82;
-      [position, position.clone().add(expandedOffset)].forEach((ringPosition) => {
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(ringRadius, 0.026, 10, 64),
-          new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, fog: false }),
-        );
-        ring.position.copy(ringPosition).addScaledVector(planeNormal, 0.012);
-        ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), planeNormal);
-        ring.renderOrder = 8;
-        group.add(ring);
-      });
-    });
-
-    for (let i = 0; i < vertices.length; i++) {
-      const a = vertices[i], b = vertices[(i + 1) % vertices.length];
-      const tubePath = new THREE.LineCurve3(a, b);
-      const tubeGeo = new THREE.TubeGeometry(tubePath, 8, 0.04, 8, false);
-      group.add(new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: dirColor })));
-    }
     const [startFractional, endFractional] = fcc110DirectionEndpoints();
-    const start = cubicPoint(startFractional, 1);
-    const end = cubicPoint(endFractional, 1);
-    const arrowShaft = new THREE.Mesh(
-      new THREE.TubeGeometry(new THREE.LineCurve3(start, end), 12, 0.045, 10, false),
-      new THREE.MeshBasicMaterial({ color: dirColor, transparent: true, opacity: 1, depthTest: false, fog: false }),
-    );
-    arrowShaft.renderOrder = 20;
-    group.add(arrowShaft);
-    const arrow = new THREE.ArrowHelper(end.clone().sub(start).normalize(), start, start.distanceTo(end), new THREE.Color(dirColor), 0.28, 0.16);
-    arrow.traverse((object) => {
-      const material = (object as THREE.Mesh).material as THREE.Material | undefined;
-      if (material) {
-        material.depthTest = false;
-        material.transparent = true;
-        if ('fog' in material) material.fog = false;
-      }
-      object.renderOrder = 20;
-    });
-    group.add(arrow);
+    start = cubicPoint(startFractional, 1);
+    end = cubicPoint(endFractional, 1);
   } else if (crystal === 'BCC') {
-    const start = cubicPoint([0, 0, 0], 1);
-    const end = cubicPoint([1, 1, 1], 1);
-    group.add(new THREE.ArrowHelper(end.clone().sub(start).normalize(), start, start.distanceTo(end), new THREE.Color(dirColor), 0.28, 0.16));
+    const [startFractional, endFractional] = bcc111DirectionEndpoints();
+    start = cubicPoint(startFractional, 1);
+    end = cubicPoint(endFractional, 1);
   } else {
-    for (let i = 0; i < 6; i++) {
-      const a = vertices[i], b = vertices[(i + 1) % 6];
-      const tubePath = new THREE.LineCurve3(a, b);
-      const tubeGeo = new THREE.TubeGeometry(tubePath, 8, 0.035, 8, false);
-      group.add(new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: dirColor })));
-    }
-    const start = vertices[3].clone();
-    const end = vertices[0].clone();
-    group.add(new THREE.ArrowHelper(end.clone().sub(start).normalize(), start, start.distanceTo(end), new THREE.Color(dirColor), 0.28, 0.16));
+    start = vertices[3].clone();
+    end = vertices[0].clone();
   }
+  addPackingDirectionVector(group, start, end, dirColor);
 
   if (crystal !== 'FCC') {
     const label = createTextSprite(`${crystals[crystal].densePlane} / ${crystals[crystal].denseDirection}`, '#ffffff', 32);
@@ -756,11 +765,35 @@ function addPacking(group: THREE.Group, crystal: CrystalType) {
     label.scale.set(1.35, 0.38, 1);
     group.add(label);
   }
+}
 
-  const unfold = createTextSprite('剖面平移展开', '#dbe7ff', 28);
-  unfold.position.copy(expandedCentroid.clone().add(new THREE.Vector3(0, 0.42, 0)));
-  unfold.scale.set(1.1, 0.3, 1);
-  group.add(unfold);
+function addPackingDirectionVector(group: THREE.Group, start: THREE.Vector3, end: THREE.Vector3, color: THREE.ColorRepresentation) {
+  const direction = end.clone().sub(start);
+  const shaft = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.LineCurve3(start, end), 12, packingDirectionStyle.shaftRadius, 10, false),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, depthTest: false, fog: false }),
+  );
+  shaft.renderOrder = 20;
+  group.add(shaft);
+
+  const arrow = new THREE.ArrowHelper(
+    direction.clone().normalize(),
+    start,
+    direction.length(),
+    color,
+    packingDirectionStyle.headLength,
+    packingDirectionStyle.headWidth,
+  );
+  arrow.traverse((object) => {
+    const objectMaterial = (object as THREE.Mesh).material as THREE.Material | undefined;
+    if (objectMaterial) {
+      objectMaterial.depthTest = false;
+      objectMaterial.transparent = true;
+      if ('fog' in objectMaterial) objectMaterial.fog = false;
+    }
+    object.renderOrder = 20;
+  });
+  group.add(arrow);
 }
 
 function positionKey(value: THREE.Vector3) {
@@ -831,7 +864,7 @@ function addCoordination(group: THREE.Group, shell: NonNullable<ReturnType<typeo
 
   const pulseHalo = new THREE.Mesh(
     new THREE.SphereGeometry(0.42, 32, 16),
-    new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.18 }),
+    new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.18, fog: false }),
   );
   pulseHalo.position.copy(center);
   group.add(pulseHalo);
@@ -840,35 +873,30 @@ function addCoordination(group: THREE.Group, shell: NonNullable<ReturnType<typeo
   [0.44, 0.68, 0.92].forEach((radius, index) => {
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(radius, 0.01, 8, 96),
-      new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.2 - index * 0.04 }),
+      new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.2 - index * 0.04, fog: false }),
     );
     ring.position.copy(center);
     group.add(ring);
   });
 
   const animObjects: THREE.Object3D[] = [];
-  nearest.forEach((item, index) => {
+  nearest.forEach((item) => {
     const neighborGroup = new THREE.Group();
     neighborGroup.scale.setScalar(0);
 
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([center, item.atom.position]),
-      new THREE.LineBasicMaterial({ color: coordinationNeighborColor, transparent: true, opacity: 0.82 }),
+      new THREE.LineBasicMaterial({ color: coordinationNeighborColor, transparent: true, opacity: 0.82, fog: false }),
     );
     neighborGroup.add(line);
     if (!renderedAtomKeys.has(positionKey(item.atom.position))) {
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(atomRadius, 32, 24),
-        createAtomMaterial(coordinationNeighborColor, { emissive: '#5c080b', emissiveIntensity: 0.45 }),
+        createAtomMaterial(coordinationNeighborColor, { emissive: '#5c080b', emissiveIntensity: 0.45, fog: false }),
       );
       sphere.position.copy(item.atom.position);
       neighborGroup.add(sphere);
     }
-    const label = createTextSprite(String(index + 1), '#ff8086', 30);
-    label.position.copy(item.atom.position.clone().add(new THREE.Vector3(0, 0, atomRadius * 0.72)));
-    label.scale.setScalar(0.42);
-    neighborGroup.add(label);
-
     group.add(neighborGroup);
     animObjects.push(neighborGroup);
   });
@@ -943,10 +971,6 @@ function addGaps(group: THREE.Group, crystal: CrystalType, kind: 'tetra' | 'octa
       });
       if (surrounding.length >= 3) addPolyhedronCage(group, surrounding, position, kind, color, 0.45);
 
-      const label = createTextSprite(`${kind === 'tetra' ? 'T' : 'O'}${index + 1}  ${getGapLabel(crystal, kind, index)}`, '#ffffff', 28);
-      label.position.copy(position.clone().add(new THREE.Vector3(0, 0, 0.46)));
-      label.scale.set(1.26, 0.32, 1);
-      group.add(label);
     }
   });
 }
@@ -1116,6 +1140,20 @@ function createTextSprite(text: string, color = '#ffffff', size = 36) {
   return sprite;
 }
 
+function createRoundPointTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const context = canvas.getContext('2d')!;
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.arc(16, 16, 13, 0, Math.PI * 2);
+  context.fill();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 export function cameraPreset(crystal: CrystalType, repeat: number, activeModule: ModuleId) {
   const baseDistance = crystal === 'HCP'
     ? (repeat > 1 ? 13.2 : 8.5)
@@ -1124,11 +1162,9 @@ export function cameraPreset(crystal: CrystalType, repeat: number, activeModule:
   const target = crystal === 'FCC' && activeModule === 'packing'
     ? new THREE.Vector3(0.55, 0.08, -0.42)
     : new THREE.Vector3(0, 0, 0);
-  const offset = crystal === 'HCP'
-    ? new THREE.Vector3(0, -distance * 0.28, -distance * 0.96)
-    : new THREE.Vector3(distance * 0.62, -distance * 0.56, distance * 0.52);
+  const offset = new THREE.Vector3(distance * 0.62, -distance * 0.56, distance * 0.52);
   return {
-    up: (crystal === 'HCP' ? [0, -1, 0] : [0, 0, 1]) as Vec3Tuple,
+    up: [0, 0, 1] as Vec3Tuple,
     position: target.clone().add(offset).toArray() as Vec3Tuple,
     target: target.toArray() as Vec3Tuple,
   };

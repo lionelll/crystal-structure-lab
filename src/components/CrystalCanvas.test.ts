@@ -5,7 +5,12 @@ import {
   atomOpacityForModule,
   atomRenderRadius,
   atomVisualStyle,
+  bcc111DirectionEndpoints,
+  bravaisPointStyle,
   cameraPreset,
+  cellFrameRepeat,
+  COORDINATION_TRANSITION_MS,
+  coordinationTransitionEase,
   coordinationVisualStyle,
   coordinationShell,
   createAtoms,
@@ -18,6 +23,7 @@ import {
   getGapLabel,
   getGapPositions,
   nearestNeighborBondPairs,
+  packingDirectionStyle,
   polyhedronEdges,
 } from './CrystalCanvas';
 import { crystals, defaultSettings, modules } from '../data/crystals';
@@ -71,6 +77,15 @@ describe('module and settings cleanup', () => {
       expect(info).not.toHaveProperty('carbon');
     });
   });
+
+  it('shows exact crystal parameters as radicals or fractions', () => {
+    expect(crystals.FCC.latticeConstant).toBe('a = 1');
+    expect(crystals.FCC.radius).toBe('R = √2a / 4');
+    expect(crystals.BCC.latticeConstant).toBe('a = 1');
+    expect(crystals.BCC.radius).toBe('R = √3a / 4');
+    expect(crystals.HCP.latticeConstant).toBe('a = 1, c/a = √(8/3)');
+    expect(crystals.HCP.radius).toBe('R = a / 2');
+  });
 });
 
 describe('crystallographic geometry', () => {
@@ -93,6 +108,12 @@ describe('atom and bond visuals', () => {
       ? atomVisualStyle.hcpSchematicRadiusOverA
       : atomVisualStyle.cubicSchematicRadiusOverA;
     expect(atomRenderRadius(crystal, 'schematic')).toBeCloseTo(ratio * latticeGeometry[crystal].worldA, 8);
+  });
+
+  it('uses the same displayed reference-sphere radius for FCC, BCC and HCP', () => {
+    const fccRadius = atomRenderRadius('FCC', 'schematic');
+    expect(atomRenderRadius('BCC', 'schematic')).toBeCloseTo(fccRadius, 8);
+    expect(atomRenderRadius('HCP', 'schematic')).toBeCloseTo(fccRadius, 8);
   });
 
   it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s ball-stick atoms are 60% of reference spheres', (crystal) => {
@@ -143,6 +164,11 @@ describe('independent Bravais lattice sites', () => {
 
   it('keeps the HCP basis out of the Bravais view', () => {
     expect(createBravaisSites('HCP', 1).some((site) => site.kind === 'center')).toBe(false);
+  });
+
+  it('renders Bravais sites as small position points instead of atom-sized spheres', () => {
+    expect(bravaisPointStyle).toEqual({ color: '#7dd0ff', size: 0.095 });
+    expect(bravaisPointStyle.size).toBeLessThan(atomRenderRadius('FCC', 'schematic') / 3);
   });
 
   it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s 2x2x2 lattice expands without duplicate sites', (crystal) => {
@@ -215,12 +241,22 @@ describe('interstitial topology and visuals', () => {
 });
 
 describe('coordination shells', () => {
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s waits for a click before highlighting a coordination center', (crystal) => {
+    expect(createAtoms(crystal, 1, false, 'coordination').some((atom) => atom.highlight)).toBe(false);
+  });
+
   it('uses yellow for the selected center and red for nearest neighbors', () => {
     expect(coordinationVisualStyle).toEqual({
       centerColor: '#fff65c',
       neighborColor: '#ff4f57',
-      baseColor: '#174b70',
+      baseColor: '#38bdf8',
     });
+  });
+
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s expands to 2x2x2 frames only after a coordination click', (crystal) => {
+    expect(cellFrameRepeat(crystal, 'coordination', false, false)).toBe(1);
+    expect(cellFrameRepeat(crystal, 'coordination', true, false)).toBe(2);
+    expect(cellFrameRepeat(crystal, 'cell', false, true)).toBe(2);
   });
 
   it.each([
@@ -251,17 +287,39 @@ describe('packing and camera presets', () => {
     expect(fcc111PackingSites()).toContainEqual({ position: midpoint, role: 'face' });
   });
 
-  it.each(['FCC', 'BCC'] as CrystalType[])('%s uses global Z-up', (crystal) => {
+  it('keeps the BCC <111> direction inside the {110} plane', () => {
+    const [start, end] = bcc111DirectionEndpoints();
+    expect(start).toEqual([0, 0, 0]);
+    expect(end).toEqual([1, 1, 1]);
+    expect(start[0] - start[1]).toBe(0);
+    expect(end[0] - end[1]).toBe(0);
+  });
+
+  it('uses a thin packing vector with a legible arrow head for all structures', () => {
+    expect(packingDirectionStyle).toEqual({ shaftRadius: 0.018, headLength: 0.34, headWidth: 0.19 });
+    expect(packingDirectionStyle.headLength).toBeGreaterThan(packingDirectionStyle.shaftRadius * 10);
+  });
+
+  it('uses a short eased coordination transition for all structures', () => {
+    expect(COORDINATION_TRANSITION_MS).toBe(450);
+    expect(coordinationTransitionEase(0)).toBe(0);
+    expect(coordinationTransitionEase(0.5)).toBeGreaterThan(0.5);
+    expect(coordinationTransitionEase(1)).toBe(1);
+  });
+
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s uses global Z-up', (crystal) => {
     expect(cameraPreset(crystal, 1, 'cell').up).toEqual([0, 0, 1]);
   });
 
-  it('uses a slightly tilted c-axis HCP first view', () => {
-    const preset = cameraPreset('HCP', 1, 'cell');
-    expect(preset.up).toEqual([0, -1, 0]);
-    expect(preset.position[0]).toBeCloseTo(0, 8);
-    expect(preset.position[1]).toBeLessThan(0);
-    expect(preset.position[2]).toBeLessThan(0);
-    expect(Math.abs(preset.position[2] / preset.position[1])).toBeGreaterThan(3);
+  it('keeps the FCC and BCC entry camera framing identical', () => {
+    expect(cameraPreset('FCC', 1, 'cell')).toEqual(cameraPreset('BCC', 1, 'cell'));
+  });
+
+  it('uses the same normalized entry angle for FCC, BCC and HCP', () => {
+    const normalizedPosition = (crystal: CrystalType) => new THREE.Vector3(...cameraPreset(crystal, 1, 'cell').position).normalize();
+    const fcc = normalizedPosition('FCC');
+    expect(normalizedPosition('BCC').distanceTo(fcc)).toBeLessThan(1e-8);
+    expect(normalizedPosition('HCP').distanceTo(fcc)).toBeLessThan(1e-8);
   });
 
   it('retains the half-cell section plane through the origin', () => {

@@ -31,7 +31,6 @@ export function ControlPanel({ activeModule, crystal, settings, onCrystalChange,
         </div>
         <label className="crystal-picker">
           <Icon name="cube" />
-          <span className="module-index">1</span>
           <span className="crystal-picker-copy">
             <small>纯金属的晶体结构</small>
             <select value={crystal} onChange={(event) => onCrystalChange(event.target.value as CrystalType)} aria-label="纯金属的晶体结构">
@@ -57,7 +56,6 @@ export function ControlPanel({ activeModule, crystal, settings, onCrystalChange,
                 title={item.summary}
               >
                 <Icon name={moduleIcons[item.id]} />
-                <span className="module-index">{item.index}</span>
                 <span>{item.title}</span>
               </button>
           ))}

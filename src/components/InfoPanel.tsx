@@ -9,7 +9,7 @@ const moduleDetails: Record<ModuleId, (type: CrystalType) => string> = {
   cell: (type) => `${type} 基础晶胞显示角点、中心或面心原子，并保留晶胞框线、坐标轴和原子编号。`,
   bravais: () => '空间点阵由当前晶体类型派生并独立显示；开启相邻晶胞后可观察三维周期重复。',
   packing: (type) => crystals[type].packing,
-  coordination: (type) => `${type} 的配位数为 ${crystals[type].coordination}。黄色中心原子周围的红色编号原子为最近邻。`,
+  coordination: (type) => `${type} 的配位数为 ${crystals[type].coordination}。黄色中心原子周围的红色原子为最近邻。`,
   tetra: (type) => crystals[type].gaps.tetra,
   octa: (type) => crystals[type].gaps.octa,
 };

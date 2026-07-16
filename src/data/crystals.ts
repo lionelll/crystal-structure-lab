@@ -1,4 +1,4 @@
-import { latticeGeometry, type CrystalType } from './latticeGeometry';
+import type { CrystalType } from './latticeGeometry';
 
 export type { CrystalType } from './latticeGeometry';
 export type ModuleId =
@@ -60,8 +60,8 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     type: 'FCC',
     title: '面心立方结构',
     latticeName: '面心立方点阵',
-    latticeConstant: 'a = 1.0000',
-    radius: `R = ${latticeGeometry.FCC.atomRadiusOverA.toFixed(4)}a`,
+    latticeConstant: 'a = 1',
+    radius: 'R = √2a / 4',
     atomsPerCell: '4',
     coordination: 12,
     densePlane: '{111}',
@@ -78,8 +78,8 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     type: 'BCC',
     title: '体心立方结构',
     latticeName: '体心立方点阵',
-    latticeConstant: 'a = 1.0000',
-    radius: `R = ${latticeGeometry.BCC.atomRadiusOverA.toFixed(4)}a`,
+    latticeConstant: 'a = 1',
+    radius: 'R = √3a / 4',
     atomsPerCell: '2',
     coordination: 8,
     densePlane: '{110}',
@@ -96,8 +96,8 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     type: 'HCP',
     title: '密排六方结构',
     latticeName: '六方点阵 + 双原子基元',
-    latticeConstant: `a = 1.0000, c/a = ${latticeGeometry.HCP.cOverA.toFixed(3)}`,
-    radius: `R = ${latticeGeometry.HCP.atomRadiusOverA.toFixed(4)}a`,
+    latticeConstant: 'a = 1, c/a = √(8/3)',
+    radius: 'R = a / 2',
     atomsPerCell: '6',
     coordination: 12,
     densePlane: '{0001}',
