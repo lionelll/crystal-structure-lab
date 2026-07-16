@@ -23,7 +23,7 @@
 3. 确认工作区干净，并确认本地 `release` 与 `origin/release` 一致。
 4. 在 `release` 上运行 `npm test` 和 `npm run build`。
 5. 只有仓库所有者明确给出 Tag 名称后，才能创建对应的 SemVer Tag，例如 `v1.2.0`。
-6. 推送 Tag 后，由 GitHub Actions 自动部署到 AWS。
+6. 推送 Tag 后，按仓库所有者的明确指令手动部署到阿里云。
 
 “部署”“发布”“准备发版”或“更新 release”都不代表允许创建 Tag。创建 Tag 必须收到包含明确版本号的直接指令，例如：`打 tag v1.2.0`。
 
@@ -34,23 +34,15 @@
 - 不允许推测版本号，不允许移动、删除已有 Tag，也不允许强制推送 Tag。
 - 当前任务中没有仓库所有者的明确 Tag 指令时，禁止创建或推送任何 Tag。
 
-## AWS 自动部署
+## 阿里云手动部署
 
-`.github/workflows/deploy-tag-to-aws.yml` 只在符合格式的版本 Tag 被推送时运行：
+当前项目不使用 GitHub Actions 自动部署。AWS 自动部署工作流已删除并禁用，任何 Tag 都不得再触发 AWS 发布。
 
-1. 校验 Tag 对应提交属于 `origin/release`。
+收到仓库所有者的明确部署指令后：
+
+1. 校验指定 Tag 对应提交属于 `origin/release`。
 2. 安装依赖，运行测试并构建静态站点。
-3. 通过 SSH 将构建产物上传到 AWS。
-4. 备份 `/var/www/guli.run/material/`，再同步新的 `dist/`。
-5. 通过线上 `release.json` 校验 Tag 和提交 SHA，确认部署的是本次版本。
-
-仓库必须配置：
-
-- Secret：`AWS_SSH_PRIVATE_KEY`
-- Secret：`AWS_KNOWN_HOSTS`
-- Variable：`AWS_HOST`
-- Variable：`AWS_USER`
-- Variable：`AWS_DEPLOY_PATH`
-- Variable：`AWS_SITE_URL`
-
-手动部署只用于仓库所有者明确要求的紧急发布或回滚；正常发版必须通过版本 Tag 触发自动部署。
+3. 写入包含 Tag 和提交 SHA 的 `release.json`。
+4. 将构建产物上传到阿里云的独立版本目录 `/data/wwwroot/crystal.changyanedu.cn/releases/`。
+5. 原子切换 `current` 软链接，并保留上一版本用于回滚。
+6. 通过 `https://crystal.changyanedu.cn/release.json` 验证线上版本。
