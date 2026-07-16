@@ -351,7 +351,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         coordinationNeighborKeys,
       );
     }
-    addAxes(root);
+    addAxes(root, crystal);
     if (activeModule === 'packing') addPacking(root, crystal);
     if (coordShell) {
       addCoordination(root, coordShell, radius, renderedAtomKeys, coordAnimRef, centerPulseRef);
@@ -369,39 +369,19 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     const controls = controlsRef.current;
     if (!camera || !controls) return;
     const repeat = settings.showSupercell ? 2 : 1;
+    rootRef.current?.rotation.set(0, 0, 0);
     setDefaultCamera(camera, controls, crystal, repeat, activeModule);
   }, [activeModule, crystal, settings.showSupercell]);
 
   return (
     <div className="viewport-wrap">
       <div className="three-mount" ref={mountRef} />
-      <div className="canvas-hint">
-        <span><MouseGlyph />拖拽：旋转</span>
-        <span><MouseGlyph />滚轮：缩放</span>
-        <span><MouseGlyph />右键：平移</span>
-      </div>
-      <div className="legend-box">
-        <Legend color={atomVisualStyle.baseColor} label="基体原子" />
-        <Legend color="#fff65c" label="选中原子" />
-        <Legend color="#ff4f57" label="最近邻原子" />
-        <Legend color="#45d27a" label="间隙位置（四面体）" />
-        <Legend color="#f39a42" label="间隙位置（八面体）" />
-      </div>
       {crystal === 'FCC' && activeModule === 'packing' && (
         <div className="packing-summary">
           <strong>{'{111}'} · {'<110>'}</strong>
           <span>面内原子：3 角点 + 3 面心</span>
         </div>
       )}
-      <div className="crystal-caption">
-        <strong>{crystals[crystal].type}</strong>
-        <span>{crystals[crystal].title}</span>
-      </div>
-      <div className="interaction-tip">
-        {settings.sectionView
-          ? '真实截面已开启：半透明平面为裁切面，仅保留晶体局部 x ≥ 0 一侧。'
-          : getCanvasInstruction(activeModule)}
-      </div>
     </div>
   );
 });
@@ -1022,8 +1002,10 @@ function addSectionPlane(group: THREE.Group, crystal: CrystalType) {
   group.add(mesh);
 }
 
-function addAxes(group: THREE.Group) {
-  const origin = new THREE.Vector3(-2.45, -2.1, -1.7);
+function addAxes(group: THREE.Group, crystal: CrystalType) {
+  const origin = crystal === 'HCP'
+    ? new THREE.Vector3(-2.0, -2.1, -1.7)
+    : new THREE.Vector3(-2.45, -2.1, -1.7);
   const x = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), origin, 0.62, 0xff554f, 0.13, 0.08);
   const y = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), origin, 0.62, 0x3bd56f, 0.13, 0.08);
   const z = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), origin, 0.62, 0x4385ff, 0.13, 0.08);
@@ -1098,18 +1080,6 @@ export function getGapLabel(crystal: CrystalType, kind: 'tetra' | 'octa', index:
   return (labels[index] ?? `O${index+1}`) + ' [有效6/cell]';
 }
 
-function getCanvasInstruction(moduleId: ModuleId) {
-  const copy: Record<ModuleId, string> = {
-    cell: '三种球模型可切换，观察原子与晶胞框线。',
-    bravais: '格点由当前晶体类型派生；开启相邻晶胞可观察点阵的三维平移重复。',
-    packing: '半透明面是密排面，右侧虚影表示剖面平移展开，箭头表示密排方向。',
-    coordination: '点击任意基体原子，重新计算中心原子的最近邻与配位数。',
-    tetra: '点击绿色间隙小球，查看对应四面体间隙与包围线框。',
-    octa: '点击橙色间隙小球，查看对应八面体间隙与包围线框。',
-  };
-  return copy[moduleId];
-}
-
 function closestAtomIndex(atoms: RenderAtom[], target: THREE.Vector3) {
   let min = Infinity;
   let index = -1;
@@ -1148,17 +1118,17 @@ function createTextSprite(text: string, color = '#ffffff', size = 36) {
 
 export function cameraPreset(crystal: CrystalType, repeat: number, activeModule: ModuleId) {
   const baseDistance = crystal === 'HCP'
-    ? (repeat > 1 ? 13.8 : 9.2)
+    ? (repeat > 1 ? 13.2 : 8.5)
     : (repeat > 1 ? 13.4 : 8.1);
   const distance = crystal === 'FCC' && activeModule === 'packing' ? 10.5 : baseDistance;
   const target = crystal === 'FCC' && activeModule === 'packing'
     ? new THREE.Vector3(0.55, 0.08, -0.42)
     : new THREE.Vector3(0, 0, 0);
   const offset = crystal === 'HCP'
-    ? new THREE.Vector3(0, -distance * 0.82, distance * 0.56)
+    ? new THREE.Vector3(0, -distance * 0.28, -distance * 0.96)
     : new THREE.Vector3(distance * 0.62, -distance * 0.56, distance * 0.52);
   return {
-    up: [0, 0, 1] as Vec3Tuple,
+    up: (crystal === 'HCP' ? [0, -1, 0] : [0, 0, 1]) as Vec3Tuple,
     position: target.clone().add(offset).toArray() as Vec3Tuple,
     target: target.toArray() as Vec3Tuple,
   };
@@ -1179,12 +1149,4 @@ function createBackgroundPlane() {
   const plane = new THREE.Mesh(geometry, material);
   plane.position.set(0, 0, -5.5);
   return plane;
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return <span><i style={{ background: color }} />{label}</span>;
-}
-
-function MouseGlyph() {
-  return <span className="mouse-dot" />;
 }

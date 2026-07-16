@@ -251,15 +251,17 @@ describe('packing and camera presets', () => {
     expect(fcc111PackingSites()).toContainEqual({ position: midpoint, role: 'face' });
   });
 
-  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s uses global Z-up', (crystal) => {
+  it.each(['FCC', 'BCC'] as CrystalType[])('%s uses global Z-up', (crystal) => {
     expect(cameraPreset(crystal, 1, 'cell').up).toEqual([0, 0, 1]);
   });
 
-  it('uses an upright front-biased HCP first view', () => {
+  it('uses a slightly tilted c-axis HCP first view', () => {
     const preset = cameraPreset('HCP', 1, 'cell');
+    expect(preset.up).toEqual([0, -1, 0]);
     expect(preset.position[0]).toBeCloseTo(0, 8);
     expect(preset.position[1]).toBeLessThan(0);
-    expect(preset.position[2]).toBeGreaterThan(0);
+    expect(preset.position[2]).toBeLessThan(0);
+    expect(Math.abs(preset.position[2] / preset.position[1])).toBeGreaterThan(3);
   });
 
   it('retains the half-cell section plane through the origin', () => {

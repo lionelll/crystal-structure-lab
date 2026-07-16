@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { crystals, modules, type CrystalType, type ModuleId } from '../data/crystals';
+import { crystals, type CrystalType, type ModuleId } from '../data/crystals';
 
 interface Props {
   crystal: CrystalType;
@@ -17,45 +16,31 @@ const moduleDetails: Record<ModuleId, (type: CrystalType) => string> = {
 
 export function InfoPanel({ crystal, activeModule }: Props) {
   const info = crystals[crystal];
-  const module = modules.find((item) => item.id === activeModule)!;
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const toggle = (id: string) => setCollapsed((current) => ({ ...current, [id]: !current[id] }));
+  const structureName = info.title.replace('结构', '');
+  const typicalMetals: Record<CrystalType, string> = {
+    FCC: 'Cu、Al、Au、Ag',
+    BCC: 'α-Fe、W、Mo、Cr',
+    HCP: 'Mg、Zn、α-Ti、Be',
+  };
 
   return (
     <aside className="right-rail panel-stack">
-      <section className={`panel info-card ${collapsed.info ? 'collapsed' : ''}`}>
-        <CardTitle title="当前信息" collapsed={collapsed.info} onToggle={() => toggle('info')} />
-        {!collapsed.info && (
+      <section className="panel info-card">
+        <div className="card-title">当前信息</div>
         <dl className="info-grid">
-          <dt>结构类型</dt><dd><span className="type-pill">{info.type}</span><span>{info.latticeName}</span></dd>
-          <dt>晶格常数</dt><dd>{info.latticeConstant}</dd>
-          <dt>原子半径</dt><dd>{info.radius}</dd>
-          <dt>晶胞内原子数</dt><dd>{info.atomsPerCell}</dd>
-          <dt>配位数</dt><dd>{info.coordination}</dd>
-          <dt>{crystal === 'BCC' ? '最密排面' : '密排面'}</dt><dd>{info.densePlane}</dd>
-          <dt>{crystal === 'BCC' ? '最密方向' : '密排方向'}</dt><dd>{info.denseDirection}</dd>
+          <dt>结构类型：</dt><dd>{info.type}（{structureName}）</dd>
+          <dt>配位数（CN）：</dt><dd>{info.coordination}</dd>
+          <dt>晶胞参数（a）：</dt><dd>{info.latticeConstant}</dd>
+          <dt>原子半径（R）：</dt><dd>{info.radius}</dd>
+          <dt>晶胞原子数：</dt><dd>{info.atomsPerCell}</dd>
+          <dt>典型金属：</dt><dd>{typicalMetals[crystal]}</dd>
         </dl>
-        )}
       </section>
 
-      <section className={`panel teaching-card ${collapsed.teaching ? 'collapsed' : ''}`}>
-        <CardTitle title="教学解析" collapsed={collapsed.teaching} onToggle={() => toggle('teaching')} />
-        {!collapsed.teaching && (
-        <>
-        <p>{moduleDetails[activeModule](crystal)}</p>
-        <p className="module-note"><strong>{module.index} {module.title}</strong>：{module.summary}</p>
-        </>
-        )}
+      <section className="panel teaching-card">
+        <div className="card-title">教学解析</div>
+        <p>{activeModule === 'cell' ? info.teaching : moduleDetails[activeModule](crystal)}</p>
       </section>
     </aside>
-  );
-}
-
-function CardTitle({ title, collapsed, onToggle }: { title: string; collapsed?: boolean; onToggle: () => void }) {
-  return (
-    <button className="card-title card-title-button" type="button" onClick={onToggle} aria-expanded={!collapsed}>
-      <span>{title}</span>
-      <span aria-hidden="true">{collapsed ? '›' : '⌄'}</span>
-    </button>
   );
 }
