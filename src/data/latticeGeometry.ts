@@ -89,14 +89,22 @@ export function hcpCellAtoms(includeBasis = true): Array<{ position: PositionTup
 }
 
 export function hcpGapPositions(kind: 'tetra' | 'octa'): PositionTuple[] {
-  const { c, upperHoles, lowerHoles } = hcpGeometry;
+  const { a, c, upperHoles, lowerHoles } = hcpGeometry;
   if (kind === 'octa') {
     return [-c / 4, c / 4].flatMap((z) => lowerHoles.map(([x, y]): PositionTuple => [x, y, z]));
   }
+  // Three A-layer lattice sites form representatives of the conventional
+  // hexagonal cell under its superlattice translations. Tetrahedral voids
+  // lie on the A-site/B-hole axis, not over the unoccupied triangle set.
+  const aLayerRepresentatives: PositionTuple[] = [
+    [0, 0, 0],
+    [a, 0, 0],
+    [a / 2, (Math.sqrt(3) / 2) * a, 0],
+  ];
   return [
     ...upperHoles.map(([x, y]): PositionTuple => [x, y, -3 * c / 8]),
-    ...lowerHoles.map(([x, y]): PositionTuple => [x, y, -c / 8]),
-    ...lowerHoles.map(([x, y]): PositionTuple => [x, y, c / 8]),
+    ...aLayerRepresentatives.map(([x, y]): PositionTuple => [x, y, -c / 8]),
+    ...aLayerRepresentatives.map(([x, y]): PositionTuple => [x, y, c / 8]),
     ...upperHoles.map(([x, y]): PositionTuple => [x, y, 3 * c / 8]),
   ];
 }

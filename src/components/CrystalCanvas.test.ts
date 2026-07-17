@@ -26,12 +26,15 @@ import {
   getGapLabel,
   getGapPositions,
   crystalAxisVectors,
+  missingPeriodicGapNeighbors,
   nearestNeighborBondPairs,
   packingPlaneColor,
   packingDirectionStyle,
   polyhedronEdges,
   renderGapSelectionLayer,
   sceneStructureKey,
+  STACKING_DISPLAY_SCALE,
+  stackingAtomRadius,
   stackingSequence,
 } from './CrystalCanvas';
 import { crystals, defaultSettings, modules } from '../data/crystals';
@@ -255,6 +258,8 @@ describe('interstitial topology and visuals', () => {
   it.each([
     ['FCC', 'tetra'],
     ['FCC', 'octa'],
+    ['BCC', 'tetra'],
+    ['BCC', 'octa'],
     ['HCP', 'tetra'],
     ['HCP', 'octa'],
   ] as const)('%s %s 2x2x2 cage endpoints match rendered atom centers', (crystal, kind) => {
@@ -265,6 +270,62 @@ describe('interstitial topology and visuals', () => {
     const surrounding = findSurroundingAtoms(crystal, sites[0], kind, atoms);
     expect(surrounding).toHaveLength(kind === 'tetra' ? 4 : 6);
     surrounding.forEach((position) => expect(renderedKeys.has(positionKey(position))).toBe(true));
+  });
+
+  it.each([
+    ['FCC', 'tetra'],
+    ['FCC', 'octa'],
+    ['BCC', 'tetra'],
+    ['BCC', 'octa'],
+    ['HCP', 'tetra'],
+    ['HCP', 'octa'],
+  ] as const)('%s %s uses the correct periodic coordination geometry for every displayed site', (crystal, kind) => {
+    [1, 2].forEach((repeat) => {
+      const atoms = createAtoms(crystal, repeat, false, kind);
+      getGapPositions(crystal, kind, repeat).forEach((site) => {
+        const surrounding = findSurroundingAtoms(crystal, site, kind, atoms, repeat);
+        const distances = surrounding.map((position) => position.distanceTo(site)).sort((a, b) => a - b);
+        expect(surrounding).toHaveLength(kind === 'tetra' ? 4 : 6);
+        expect(new Set(surrounding.map(positionKey)).size).toBe(surrounding.length);
+        if (crystal === 'BCC' && kind === 'octa') {
+          expect(distances[1]).toBeCloseTo(distances[0], 6);
+          expect(distances[2]).toBeGreaterThan(distances[1]);
+          expect(distances[5]).toBeCloseTo(distances[2], 6);
+        } else {
+          expect(distances.at(-1)! - distances[0]).toBeLessThan(1e-5);
+        }
+      });
+    });
+  });
+
+  it('adds only missing periodic atoms to a selected boundary cage', () => {
+    const crystal: CrystalType = 'FCC';
+    const kind = 'octa' as const;
+    const atoms = createAtoms(crystal, 1, false, kind);
+    const renderedKeys = new Set(atoms.map((atom) => renderPositionKey(atom.position)));
+    const site = getGapPositions(crystal, kind).find((position) => Math.abs(position.y + latticeGeometry.FCC.worldA / 2) < 1e-6)!;
+    const surrounding = findSurroundingAtoms(crystal, site, kind, atoms, 1);
+    const missing = missingPeriodicGapNeighbors(surrounding, renderedKeys);
+    const layer = new THREE.Group();
+
+    renderGapSelectionLayer(
+      layer,
+      crystal,
+      kind,
+      [site],
+      atoms,
+      0,
+      1,
+      atomRenderRadius(crystal, 'schematic'),
+      renderedKeys,
+    );
+
+    const periodicMeshes = layer.children.filter((child) => child.userData.kind === 'periodic-gap-neighbor');
+    expect(periodicMeshes).toHaveLength(missing.length);
+    expect(new Set(periodicMeshes.map((mesh) => renderPositionKey(mesh.position)))).toEqual(
+      new Set(missing.map(renderPositionKey)),
+    );
+    periodicMeshes.forEach((mesh) => expect(renderedKeys.has(renderPositionKey(mesh.position))).toBe(false));
   });
 
   it('keeps FCC 2x2x2 octahedral sites separate from matrix atoms', () => {
@@ -360,6 +421,23 @@ describe('stacking models', () => {
     const cell = cameraPreset(crystal, 1, 'cell');
     expect(stacking.position).toEqual(cell.position);
     expect(stacking.target).toEqual(cell.target);
+  });
+
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s uses its rigid radius and keeps nearest neighbors tangent', (crystal) => {
+    const atoms = createStackingAtoms(crystal);
+    const radius = stackingAtomRadius(crystal);
+    const expectedDistance = 2 * radius;
+    expect(STACKING_DISPLAY_SCALE).toBe(0.68);
+    expect(radius).toBeCloseTo(
+      latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA * STACKING_DISPLAY_SCALE,
+      8,
+    );
+    atoms.forEach((atom, atomIndex) => {
+      const nearest = Math.min(...atoms
+        .filter((_, candidateIndex) => candidateIndex !== atomIndex)
+        .map((candidate) => atom.position.distanceTo(candidate.position)));
+      expect(nearest).toBeCloseTo(expectedDistance, 6);
+    });
   });
 });
 
