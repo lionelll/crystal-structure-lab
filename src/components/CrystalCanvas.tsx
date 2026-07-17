@@ -747,32 +747,47 @@ export function createStackingAtoms(crystal: CrystalType): StackingAtom[] {
 }
 
 export function stackingLayerAnnotations(crystal: CrystalType, atoms: StackingAtom[]): StackingLayerAnnotation[] {
-  const groups = new Map<string, { layer: StackingLayerLabel; coordinate: number }>();
+  const groups = new Map<string, { layer: StackingLayerLabel; coordinate: number; atoms: StackingAtom[] }>();
   atoms.forEach((atom) => {
     const coordinate = stackingLayerCoordinate(crystal, atom.position);
     const key = coordinate.toFixed(6);
-    if (!groups.has(key)) groups.set(key, { layer: atom.layer, coordinate });
+    const group = groups.get(key);
+    if (group) group.atoms.push(atom);
+    else groups.set(key, { layer: atom.layer, coordinate, atoms: [atom] });
   });
 
-  const atomRadius = stackingAtomRadius(crystal);
-  return [...groups.values()]
-    .sort((a, b) => a.coordinate - b.coordinate)
-    .map(({ layer, coordinate }) => {
-      if (crystal !== 'FCC') {
-        const labelX = Math.min(...atoms.map((atom) => atom.position.x)) - atomRadius * 1.85;
-        return { layer, coordinate, position: new THREE.Vector3(labelX, 0, coordinate) };
-      }
+  const layerGroups = [...groups.values()].sort((a, b) => a.coordinate - b.coordinate);
+  const preset = cameraPreset(crystal, 1, 'stacking');
+  const cameraDirection = new THREE.Vector3(...preset.position)
+    .sub(new THREE.Vector3(...preset.target))
+    .normalize();
+  const screenRight = new THREE.Vector3(...preset.up).cross(cameraDirection).normalize();
 
-      // Keep the labels on their (111) planes while moving them outside the
-      // atom cluster toward screen-left in the shared cell entry view.
-      const labelDirection = new THREE.Vector3(-1, -1, 2).normalize();
-      const planeCenter = new THREE.Vector3(coordinate / 3, coordinate / 3, coordinate / 3);
+  return layerGroups.map(({ layer, coordinate, atoms: layerAtoms }, layerIndex) => {
+      let representative: StackingAtom;
+      if (crystal === 'FCC') {
+        representative = layerAtoms.reduce((closest, atom) => (
+          atom.position.dot(cameraDirection) > closest.position.dot(cameraDirection) ? atom : closest
+        ));
+      } else if (layerIndex === 0) {
+        representative = layerAtoms.reduce((leftmost, atom) => (
+          atom.position.dot(screenRight) < leftmost.position.dot(screenRight) ? atom : leftmost
+        ));
+      } else if (layerIndex === layerGroups.length - 1) {
+        representative = layerAtoms.reduce((rightmost, atom) => (
+          atom.position.dot(screenRight) > rightmost.position.dot(screenRight) ? atom : rightmost
+        ));
+      } else {
+        representative = layerAtoms.reduce((centered, atom) => (
+          Math.abs(atom.position.dot(screenRight)) < Math.abs(centered.position.dot(screenRight)) ? atom : centered
+        ));
+      }
       return {
         layer,
         coordinate,
-        position: planeCenter.addScaledVector(labelDirection, atomRadius * 3.3),
+        position: representative.position.clone(),
       };
-    });
+  });
 }
 
 function addStackingModel(group: THREE.Group, crystal: CrystalType) {
@@ -793,7 +808,7 @@ function addStackingModel(group: THREE.Group, crystal: CrystalType) {
   stackingLayerAnnotations(crystal, atoms).forEach(({ layer, position }) => {
     const label = createTextSprite(layer, '#ffffff', 34);
     label.position.copy(position);
-    label.scale.set(0.5, 0.5, 1);
+    label.scale.set(0.34, 0.34, 1);
     group.add(label);
   });
 }

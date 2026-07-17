@@ -457,12 +457,38 @@ describe('stacking models', () => {
     });
   });
 
-  it('places FCC A-B-C-A labels on their corresponding (111) layers', () => {
-    const annotations = stackingLayerAnnotations('FCC', createStackingAtoms('FCC'));
-    expect(annotations.map(({ layer }) => layer)).toEqual(['A', 'B', 'C', 'A']);
-    annotations.forEach(({ coordinate, position }) => {
-      expect(position.x + position.y + position.z).toBeCloseTo(coordinate, 8);
+  it.each([
+    ['FCC', ['A', 'B', 'C', 'A']],
+    ['BCC', ['A', 'B', 'A']],
+    ['HCP', ['A', 'B', 'A']],
+  ] as const)('places %s layer labels on representative atoms', (crystal, sequence) => {
+    const atoms = createStackingAtoms(crystal);
+    const annotations = stackingLayerAnnotations(crystal, atoms);
+    expect(annotations.map(({ layer }) => layer)).toEqual(sequence);
+    annotations.forEach(({ layer, coordinate, position }) => {
+      const actualCoordinate = crystal === 'FCC' ? position.x + position.y + position.z : position.z;
+      expect(actualCoordinate).toBeCloseTo(coordinate, 8);
+      expect(atoms.some((atom) => atom.layer === layer && atom.position.distanceTo(position) < 1e-8)).toBe(true);
     });
+  });
+
+  it.each(['BCC', 'HCP'] as CrystalType[])('%s spreads A-B-A labels across distinct visible spheres', (crystal) => {
+    const annotations = stackingLayerAnnotations(crystal, createStackingAtoms(crystal));
+    const preset = cameraPreset(crystal, 1, 'stacking');
+    const cameraDirection = new THREE.Vector3(...preset.position)
+      .sub(new THREE.Vector3(...preset.target))
+      .normalize();
+    const screenRight = new THREE.Vector3(...preset.up).cross(cameraDirection).normalize();
+    const horizontalPositions = annotations.map(({ position }) => position.dot(screenRight));
+    expect(horizontalPositions[0]).toBeLessThan(horizontalPositions[1]);
+    expect(horizontalPositions[1]).toBeLessThan(horizontalPositions[2]);
+  });
+
+  it('explains BCC and HCP ABAB stacking without treating BCC as close-packed', () => {
+    expect(crystals.BCC.stacking).toContain('ABAB…');
+    expect(crystals.BCC.stacking).toContain('不是密排结构');
+    expect(crystals.HCP.stacking).toContain('ABAB…');
+    expect(crystals.HCP.stacking).toContain('{0001}');
   });
 });
 

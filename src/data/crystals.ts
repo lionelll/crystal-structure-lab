@@ -88,9 +88,9 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     coordination: 8,
     densePlane: '{110}',
     denseDirection: '<111>',
-    teaching: 'BCC 的原子沿体对角线相切，配位数为 8。它不是密排结构，{110} 是原子排列最密的晶面。',
+    teaching: 'BCC 的原子沿体对角线相切，配位数为 8。它不是密排结构，{110} 是原子排列最密的晶面；沿 [001] 的交替层可表示为 ABAB…。',
     bravais: '八个角点加一个体心点构成体心立方点阵，中心点与角点沿体对角线重复。',
-    stacking: 'BCC 不是密排结构。沿 [001] 观察时，角点方形层与偏移半个晶格的体心层交替出现。',
+    stacking: 'BCC 不是密排结构。沿 [001] 将角点方形层记为 A、偏移半个晶格的体心层记为 B，可得到 ABAB…交替层序；这不同于 FCC/HCP 的密排层堆垛。',
     packing: 'BCC 不是密排结构。{110} 是其最密排面（非真正密排面），<111> 是最密方向。',
     gaps: {
       tetra: 'BCC 四面体间隙较多但不规则，碳进入后会引起显著畸变。',
@@ -109,7 +109,7 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
     denseDirection: '<11-20>',
     teaching: 'HCP 与 FCC 都属于密排结构，配位数均为 12。两者的主要区别是密排层堆垛方式：HCP 为 ABAB，FCC 为 ABCABC。',
     bravais: 'HCP 可通过六方柱状晶胞理解，底面为密排六角层，中间层错位嵌入。',
-    stacking: 'HCP 沿 c 轴由密排层按 ABAB 顺序堆垛，第三层回到第一层的正上方。',
+    stacking: 'HCP 的 {0001} 密排层沿 c 轴按 ABAB…顺序堆垛，第三层 A 回到第一层 A 的正上方。',
     packing: 'HCP 的密排面是基面 {0001}，密排方向在基面内沿 <11-20>。',
     gaps: {
       tetra: 'HCP 的四面体间隙位于上下密排层之间，与 FCC 数量关系类似。',
