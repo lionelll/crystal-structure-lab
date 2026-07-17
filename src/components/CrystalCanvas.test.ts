@@ -33,8 +33,9 @@ import {
   polyhedronEdges,
   renderGapSelectionLayer,
   sceneStructureKey,
-  STACKING_DISPLAY_SCALE,
   stackingAtomRadius,
+  stackingLayerAnnotations,
+  stackingPositionScale,
   stackingSequence,
 } from './CrystalCanvas';
 import { crystals, defaultSettings, modules } from '../data/crystals';
@@ -409,7 +410,7 @@ describe('stacking models', () => {
   ] as const)('%s uses one conventional cell across %i stacking layers', (crystal, layerCount) => {
     const atoms = createStackingAtoms(crystal);
     expect(atoms).toHaveLength(createAtoms(crystal, 1, false, 'cell').length);
-    expect(new Set(atoms.map(({ position }) => position.z.toFixed(6))).size).toBe(layerCount);
+    expect(stackingLayerAnnotations(crystal, atoms)).toHaveLength(layerCount);
     stackingSequence(crystal).forEach((layer) => {
       expect(atoms.some((atom) => atom.layer === layer)).toBe(true);
     });
@@ -423,13 +424,20 @@ describe('stacking models', () => {
     expect(stacking.target).toEqual(cell.target);
   });
 
-  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s uses its rigid radius and keeps nearest neighbors tangent', (crystal) => {
+  it('uses the same displayed sphere radius as the cell model for all structures', () => {
+    const expected = atomRenderRadius('FCC', 'schematic');
+    (['FCC', 'BCC', 'HCP'] as CrystalType[]).forEach((crystal) => {
+      expect(stackingAtomRadius(crystal)).toBeCloseTo(expected, 8);
+      expect(stackingAtomRadius(crystal)).toBeCloseTo(atomRenderRadius(crystal, 'schematic'), 8);
+    });
+  });
+
+  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s rescales positions so equal-size spheres remain tangent', (crystal) => {
     const atoms = createStackingAtoms(crystal);
     const radius = stackingAtomRadius(crystal);
     const expectedDistance = 2 * radius;
-    expect(STACKING_DISPLAY_SCALE).toBe(0.68);
-    expect(radius).toBeCloseTo(
-      latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA * STACKING_DISPLAY_SCALE,
+    expect(stackingPositionScale(crystal)).toBeCloseTo(
+      radius / (latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA),
       8,
     );
     atoms.forEach((atom, atomIndex) => {
@@ -437,6 +445,23 @@ describe('stacking models', () => {
         .filter((_, candidateIndex) => candidateIndex !== atomIndex)
         .map((candidate) => atom.position.distanceTo(candidate.position)));
       expect(nearest).toBeCloseTo(expectedDistance, 6);
+    });
+  });
+
+  it('keeps the FCC stacking model in the same orientation as its cell model', () => {
+    const cellAtoms = createAtoms('FCC', 1, false, 'cell');
+    const stackingAtoms = createStackingAtoms('FCC');
+    const scale = stackingPositionScale('FCC');
+    stackingAtoms.forEach((atom, index) => {
+      expect(atom.position.distanceTo(cellAtoms[index].position.clone().multiplyScalar(scale))).toBeLessThan(1e-8);
+    });
+  });
+
+  it('places FCC A-B-C-A labels on their corresponding (111) layers', () => {
+    const annotations = stackingLayerAnnotations('FCC', createStackingAtoms('FCC'));
+    expect(annotations.map(({ layer }) => layer)).toEqual(['A', 'B', 'C', 'A']);
+    annotations.forEach(({ coordinate, position }) => {
+      expect(position.x + position.y + position.z).toBeCloseTo(coordinate, 8);
     });
   });
 });

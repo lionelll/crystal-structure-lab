@@ -98,7 +98,6 @@ export const atomVisualStyle = {
 
 export const AUTO_ROTATE_RADIANS_PER_FRAME = 0.003;
 export const COORDINATION_TRANSITION_MS = 450;
-export const STACKING_DISPLAY_SCALE = 0.68;
 
 export function coordinationTransitionEase(progress: number) {
   const clamped = Math.max(0, Math.min(1, progress));
@@ -202,8 +201,13 @@ export function atomRenderRadius(crystal: CrystalType, modelStyle: ModelStyle) {
 }
 
 export function stackingAtomRadius(crystal: CrystalType) {
+  return atomRenderRadius(crystal, 'schematic');
+}
+
+export function stackingPositionScale(crystal: CrystalType) {
   const geometry = latticeGeometry[crystal];
-  return geometry.atomRadiusOverA * geometry.worldA * STACKING_DISPLAY_SCALE;
+  const rigidRadius = geometry.atomRadiusOverA * geometry.worldA;
+  return stackingAtomRadius(crystal) / rigidRadius;
 }
 
 const interstitialModules = new Set<ModuleId>(['tetra', 'octa']);
@@ -715,30 +719,60 @@ export interface StackingAtom {
   layer: StackingLayerLabel;
 }
 
+export interface StackingLayerAnnotation {
+  layer: StackingLayerLabel;
+  position: THREE.Vector3;
+  coordinate: number;
+}
+
+function stackingLayerCoordinate(crystal: CrystalType, position: THREE.Vector3) {
+  return crystal === 'FCC' ? position.x + position.y + position.z : position.z;
+}
+
 export function createStackingAtoms(crystal: CrystalType): StackingAtom[] {
   const cellAtoms = createAtoms(crystal, 1, false, 'cell');
-  const layerCoordinate = (position: THREE.Vector3) => crystal === 'FCC'
-    ? position.x + position.y + position.z
-    : position.z;
-  const layerLevels = [...new Set(cellAtoms.map(({ position }) => layerCoordinate(position).toFixed(6)))]
+  const layerLevels = [...new Set(cellAtoms.map(({ position }) => stackingLayerCoordinate(crystal, position).toFixed(6)))]
     .map(Number)
     .sort((a, b) => a - b);
   const sequence = stackingSequence(crystal);
-  const fccToStackingAxis = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(1, 1, 1).normalize(),
-    new THREE.Vector3(0, 0, 1),
-  );
 
   return cellAtoms.map(({ position }) => {
-    const coordinate = layerCoordinate(position);
+    const coordinate = stackingLayerCoordinate(crystal, position);
     const layerIndex = layerLevels.reduce((closest, value, index) => (
       Math.abs(value - coordinate) < Math.abs(layerLevels[closest] - coordinate) ? index : closest
     ), 0);
-    const stackingPosition = position.clone();
-    if (crystal === 'FCC') stackingPosition.applyQuaternion(fccToStackingAxis);
-    stackingPosition.multiplyScalar(STACKING_DISPLAY_SCALE);
+    const stackingPosition = position.clone().multiplyScalar(stackingPositionScale(crystal));
     return { position: stackingPosition, layer: sequence[layerIndex] };
   });
+}
+
+export function stackingLayerAnnotations(crystal: CrystalType, atoms: StackingAtom[]): StackingLayerAnnotation[] {
+  const groups = new Map<string, { layer: StackingLayerLabel; coordinate: number }>();
+  atoms.forEach((atom) => {
+    const coordinate = stackingLayerCoordinate(crystal, atom.position);
+    const key = coordinate.toFixed(6);
+    if (!groups.has(key)) groups.set(key, { layer: atom.layer, coordinate });
+  });
+
+  const atomRadius = stackingAtomRadius(crystal);
+  return [...groups.values()]
+    .sort((a, b) => a.coordinate - b.coordinate)
+    .map(({ layer, coordinate }) => {
+      if (crystal !== 'FCC') {
+        const labelX = Math.min(...atoms.map((atom) => atom.position.x)) - atomRadius * 1.85;
+        return { layer, coordinate, position: new THREE.Vector3(labelX, 0, coordinate) };
+      }
+
+      // Keep the labels on their (111) planes while moving them outside the
+      // atom cluster toward screen-left in the shared cell entry view.
+      const labelDirection = new THREE.Vector3(-1, -1, 2).normalize();
+      const planeCenter = new THREE.Vector3(coordinate / 3, coordinate / 3, coordinate / 3);
+      return {
+        layer,
+        coordinate,
+        position: planeCenter.addScaledVector(labelDirection, atomRadius * 3.3),
+      };
+    });
 }
 
 function addStackingModel(group: THREE.Group, crystal: CrystalType) {
@@ -756,15 +790,9 @@ function addStackingModel(group: THREE.Group, crystal: CrystalType) {
     group.add(mesh);
   });
 
-  const layerGroups = [...atoms.reduce((groups, atom) => {
-    const key = atom.position.z.toFixed(6);
-    if (!groups.has(key)) groups.set(key, { layer: atom.layer, z: atom.position.z });
-    return groups;
-  }, new Map<string, { layer: StackingLayerLabel; z: number }>()).values()].sort((a, b) => a.z - b.z);
-  const labelX = Math.min(...atoms.map((atom) => atom.position.x)) - 0.68;
-  layerGroups.forEach(({ layer, z }) => {
+  stackingLayerAnnotations(crystal, atoms).forEach(({ layer, position }) => {
     const label = createTextSprite(layer, '#ffffff', 34);
-    label.position.set(labelX, 0, z);
+    label.position.copy(position);
     label.scale.set(0.5, 0.5, 1);
     group.add(label);
   });
