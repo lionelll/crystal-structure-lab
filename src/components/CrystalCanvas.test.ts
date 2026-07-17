@@ -34,7 +34,6 @@ import {
   renderGapSelectionLayer,
   sceneStructureKey,
   stackingAtomRadius,
-  stackingLayerAnnotations,
   stackingPositionScale,
   stackingSequence,
 } from './CrystalCanvas';
@@ -410,7 +409,10 @@ describe('stacking models', () => {
   ] as const)('%s uses one conventional cell across %i stacking layers', (crystal, layerCount) => {
     const atoms = createStackingAtoms(crystal);
     expect(atoms).toHaveLength(createAtoms(crystal, 1, false, 'cell').length);
-    expect(stackingLayerAnnotations(crystal, atoms)).toHaveLength(layerCount);
+    const layerCoordinates = atoms.map(({ position }) => (
+      crystal === 'FCC' ? position.x + position.y + position.z : position.z
+    ));
+    expect(new Set(layerCoordinates.map((coordinate) => coordinate.toFixed(6))).size).toBe(layerCount);
     stackingSequence(crystal).forEach((layer) => {
       expect(atoms.some((atom) => atom.layer === layer)).toBe(true);
     });
@@ -455,33 +457,6 @@ describe('stacking models', () => {
     stackingAtoms.forEach((atom, index) => {
       expect(atom.position.distanceTo(cellAtoms[index].position.clone().multiplyScalar(scale))).toBeLessThan(1e-8);
     });
-  });
-
-  it.each([
-    ['FCC', ['A', 'B', 'C', 'A']],
-    ['BCC', ['A', 'B', 'A']],
-    ['HCP', ['A', 'B', 'A']],
-  ] as const)('places %s layer labels on representative atoms', (crystal, sequence) => {
-    const atoms = createStackingAtoms(crystal);
-    const annotations = stackingLayerAnnotations(crystal, atoms);
-    expect(annotations.map(({ layer }) => layer)).toEqual(sequence);
-    annotations.forEach(({ layer, coordinate, position }) => {
-      const actualCoordinate = crystal === 'FCC' ? position.x + position.y + position.z : position.z;
-      expect(actualCoordinate).toBeCloseTo(coordinate, 8);
-      expect(atoms.some((atom) => atom.layer === layer && atom.position.distanceTo(position) < 1e-8)).toBe(true);
-    });
-  });
-
-  it.each(['BCC', 'HCP'] as CrystalType[])('%s spreads A-B-A labels across distinct visible spheres', (crystal) => {
-    const annotations = stackingLayerAnnotations(crystal, createStackingAtoms(crystal));
-    const preset = cameraPreset(crystal, 1, 'stacking');
-    const cameraDirection = new THREE.Vector3(...preset.position)
-      .sub(new THREE.Vector3(...preset.target))
-      .normalize();
-    const screenRight = new THREE.Vector3(...preset.up).cross(cameraDirection).normalize();
-    const horizontalPositions = annotations.map(({ position }) => position.dot(screenRight));
-    expect(horizontalPositions[0]).toBeLessThan(horizontalPositions[1]);
-    expect(horizontalPositions[1]).toBeLessThan(horizontalPositions[2]);
   });
 
   it('explains BCC and HCP ABAB stacking without treating BCC as close-packed', () => {

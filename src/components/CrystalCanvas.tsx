@@ -719,12 +719,6 @@ export interface StackingAtom {
   layer: StackingLayerLabel;
 }
 
-export interface StackingLayerAnnotation {
-  layer: StackingLayerLabel;
-  position: THREE.Vector3;
-  coordinate: number;
-}
-
 function stackingLayerCoordinate(crystal: CrystalType, position: THREE.Vector3) {
   return crystal === 'FCC' ? position.x + position.y + position.z : position.z;
 }
@@ -746,50 +740,6 @@ export function createStackingAtoms(crystal: CrystalType): StackingAtom[] {
   });
 }
 
-export function stackingLayerAnnotations(crystal: CrystalType, atoms: StackingAtom[]): StackingLayerAnnotation[] {
-  const groups = new Map<string, { layer: StackingLayerLabel; coordinate: number; atoms: StackingAtom[] }>();
-  atoms.forEach((atom) => {
-    const coordinate = stackingLayerCoordinate(crystal, atom.position);
-    const key = coordinate.toFixed(6);
-    const group = groups.get(key);
-    if (group) group.atoms.push(atom);
-    else groups.set(key, { layer: atom.layer, coordinate, atoms: [atom] });
-  });
-
-  const layerGroups = [...groups.values()].sort((a, b) => a.coordinate - b.coordinate);
-  const preset = cameraPreset(crystal, 1, 'stacking');
-  const cameraDirection = new THREE.Vector3(...preset.position)
-    .sub(new THREE.Vector3(...preset.target))
-    .normalize();
-  const screenRight = new THREE.Vector3(...preset.up).cross(cameraDirection).normalize();
-
-  return layerGroups.map(({ layer, coordinate, atoms: layerAtoms }, layerIndex) => {
-      let representative: StackingAtom;
-      if (crystal === 'FCC') {
-        representative = layerAtoms.reduce((closest, atom) => (
-          atom.position.dot(cameraDirection) > closest.position.dot(cameraDirection) ? atom : closest
-        ));
-      } else if (layerIndex === 0) {
-        representative = layerAtoms.reduce((leftmost, atom) => (
-          atom.position.dot(screenRight) < leftmost.position.dot(screenRight) ? atom : leftmost
-        ));
-      } else if (layerIndex === layerGroups.length - 1) {
-        representative = layerAtoms.reduce((rightmost, atom) => (
-          atom.position.dot(screenRight) > rightmost.position.dot(screenRight) ? atom : rightmost
-        ));
-      } else {
-        representative = layerAtoms.reduce((centered, atom) => (
-          Math.abs(atom.position.dot(screenRight)) < Math.abs(centered.position.dot(screenRight)) ? atom : centered
-        ));
-      }
-      return {
-        layer,
-        coordinate,
-        position: representative.position.clone(),
-      };
-  });
-}
-
 function addStackingModel(group: THREE.Group, crystal: CrystalType) {
   const atoms = createStackingAtoms(crystal);
   const atomRadius = stackingAtomRadius(crystal);
@@ -803,13 +753,6 @@ function addStackingModel(group: THREE.Group, crystal: CrystalType) {
     const mesh = new THREE.Mesh(sphere, material);
     mesh.position.copy(atom.position);
     group.add(mesh);
-  });
-
-  stackingLayerAnnotations(crystal, atoms).forEach(({ layer, position }) => {
-    const label = createTextSprite(layer, '#ffffff', 34);
-    label.position.copy(position);
-    label.scale.set(0.34, 0.34, 1);
-    group.add(label);
   });
 }
 
