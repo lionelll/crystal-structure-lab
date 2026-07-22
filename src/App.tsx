@@ -1,21 +1,64 @@
 import { useMemo, useRef, useState } from 'react';
 import { ControlPanel } from './components/ControlPanel';
+import { CanvasErrorBoundary } from './components/CanvasErrorBoundary';
 import { CrystalCanvas, type CrystalCanvasHandle } from './components/CrystalCanvas';
+import { IonicCrystalCanvas } from './components/IonicCrystalCanvas';
 import { Icon } from './components/Icons';
 import { InfoPanel } from './components/InfoPanel';
-import { defaultSettings, modules, type CrystalType, type DisplaySettings, type ModuleId } from './data/crystals';
+import {
+  defaultSettings,
+  isCrystalType,
+  modules,
+  resolveCrystal,
+  type CrystalType,
+  type DisplaySettings,
+  type ModuleId,
+} from './data/crystals';
+import {
+  ionicDefaultSupercell,
+  ionicModules,
+  isIonicCrystalId,
+  resolveIonicCrystal,
+  type CrystalFamily,
+  type IonicCrystalId,
+  type IonicModuleId,
+} from './data/ionicCrystals';
 import brandLogo from './assets/brand-logo.png';
 
 export default function App() {
+  const [family, setFamily] = useState<CrystalFamily>('metal');
   const [crystal, setCrystal] = useState<CrystalType>('FCC');
   const [activeModule, setActiveModule] = useState<ModuleId>('cell');
+  const [ionicCrystal, setIonicCrystal] = useState<IonicCrystalId>('cscl');
+  const [ionicModule, setIonicModule] = useState<IonicModuleId>('cell');
   const [settings, setSettings] = useState<DisplaySettings>(defaultSettings);
   const canvasRef = useRef<CrystalCanvasHandle>(null);
+  const resolvedCrystal = resolveCrystal(crystal);
+  const resolvedIonicCrystal = resolveIonicCrystal(ionicCrystal);
 
-  const activeTitle = useMemo(() => modules.find((item) => item.id === activeModule)?.title ?? '晶胞模型', [activeModule]);
+  const activeTitle = useMemo(() => {
+    const source = family === 'metal' ? modules : ionicModules;
+    const id = family === 'metal' ? activeModule : ionicModule;
+    return source.find((item) => item.id === id)?.title ?? '晶胞模型';
+  }, [activeModule, family, ionicModule]);
 
   const handleCrystalChange = (next: CrystalType) => {
+    if (!isCrystalType(next)) return;
     setCrystal(next);
+  };
+
+  const handleFamilyChange = (next: CrystalFamily) => {
+    setFamily(next);
+    setSettings((current) => ({
+      ...current,
+      showSupercell: next === 'ionic' && ionicDefaultSupercell(resolvedIonicCrystal.id),
+    }));
+  };
+
+  const handleIonicCrystalChange = (next: IonicCrystalId) => {
+    if (!isIonicCrystalId(next)) return;
+    setIonicCrystal(next);
+    setSettings((current) => ({ ...current, showSupercell: ionicDefaultSupercell(next) }));
   };
 
   return (
@@ -38,11 +81,18 @@ export default function App() {
 
       <main className="workspace">
         <ControlPanel
-          activeModule={activeModule}
-          crystal={crystal}
+          family={family}
+          activeModule={family === 'metal' ? activeModule : ionicModule}
+          crystal={resolvedCrystal.type}
+          ionicCrystal={resolvedIonicCrystal.id}
           settings={settings}
+          onFamilyChange={handleFamilyChange}
           onCrystalChange={handleCrystalChange}
-          onModuleChange={setActiveModule}
+          onIonicCrystalChange={handleIonicCrystalChange}
+          onModuleChange={(id) => {
+            if (family === 'metal') setActiveModule(id as ModuleId);
+            else setIonicModule(id as IonicModuleId);
+          }}
           onSettingsChange={setSettings}
         />
 
@@ -52,16 +102,35 @@ export default function App() {
               <img className="stage-logo" src={brandLogo} alt="" />
               <strong>{activeTitle}</strong>
             </div>
-            <CrystalCanvas
-              ref={canvasRef}
-              crystal={crystal}
-              activeModule={activeModule}
-              settings={settings}
-            />
+            <CanvasErrorBoundary
+              resetKey={`${family}:${family === 'metal' ? resolvedCrystal.type : resolvedIonicCrystal.id}:${family === 'metal' ? activeModule : ionicModule}`}
+            >
+              {family === 'metal' ? (
+                <CrystalCanvas
+                  ref={canvasRef}
+                  crystal={resolvedCrystal.type}
+                  activeModule={activeModule}
+                  settings={settings}
+                />
+              ) : (
+                <IonicCrystalCanvas
+                  ref={canvasRef}
+                  crystalId={resolvedIonicCrystal.id}
+                  activeModule={ionicModule}
+                  settings={settings}
+                />
+              )}
+            </CanvasErrorBoundary>
           </div>
         </section>
 
-        <InfoPanel crystal={crystal} activeModule={activeModule} />
+        <InfoPanel
+          family={family}
+          crystal={resolvedCrystal.type}
+          activeModule={activeModule}
+          ionicCrystal={resolvedIonicCrystal}
+          ionicModule={ionicModule}
+        />
       </main>
 
     </div>

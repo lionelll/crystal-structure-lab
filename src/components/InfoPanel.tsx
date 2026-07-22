@@ -1,8 +1,12 @@
-import { crystals, type CrystalType, type ModuleId } from '../data/crystals';
+import { crystals, resolveCrystal, type CrystalType, type ModuleId } from '../data/crystals';
+import { ionicCrystals, type CrystalFamily, type IonicCrystalInfo, type IonicModuleId } from '../data/ionicCrystals';
 
 interface Props {
+  family: CrystalFamily;
   crystal: CrystalType;
   activeModule: ModuleId;
+  ionicCrystal?: IonicCrystalInfo;
+  ionicModule: IonicModuleId;
 }
 
 const moduleDetails: Record<ModuleId, (type: CrystalType) => string> = {
@@ -15,8 +19,33 @@ const moduleDetails: Record<ModuleId, (type: CrystalType) => string> = {
   octa: (type) => crystals[type].gaps.octa,
 };
 
-export function InfoPanel({ crystal, activeModule }: Props) {
-  const info = crystals[crystal];
+export function InfoPanel({ family, crystal, activeModule, ionicCrystal }: Props) {
+  if (family === 'ionic') {
+    const info = ionicCrystal ?? ionicCrystals.cscl;
+    return (
+      <aside className="right-rail panel-stack">
+        <section className="panel info-card ionic-info-card">
+          <div className="card-title">当前信息</div>
+          <dl className="info-grid ionic-info-grid">
+            <dt>结构类型：</dt><dd>{info.structureType}</dd>
+            <dt>点阵类型：</dt><dd>{info.latticeType}</dd>
+            <dt>离子位置：</dt><dd>{info.ionPositions}</dd>
+            <dt>离子个数：</dt><dd>{info.ionCounts}</dd>
+            <dt>配位数：</dt><dd>{info.coordinationText}</dd>
+            <dt>结构基元：</dt><dd>{info.basis}</dd>
+          </dl>
+        </section>
+
+        <section className="panel teaching-card ionic-teaching-card">
+          <div className="card-title">教学解析</div>
+          <p>{info.teaching}</p>
+        </section>
+      </aside>
+    );
+  }
+
+  const info = resolveCrystal(crystal);
+  const crystalType = info.type;
   const structureName = info.title.replace('结构', '');
   const typicalMetals: Record<CrystalType, string> = {
     FCC: 'Cu、Al、Au、Ag',
@@ -34,13 +63,13 @@ export function InfoPanel({ crystal, activeModule }: Props) {
           <dt>晶胞参数（a）：</dt><dd>{info.latticeConstant}</dd>
           <dt>原子半径（R）：</dt><dd>{info.radius}</dd>
           <dt>晶胞原子数：</dt><dd>{info.atomsPerCell}</dd>
-          <dt>典型金属：</dt><dd>{typicalMetals[crystal]}</dd>
+          <dt>典型金属：</dt><dd>{typicalMetals[crystalType]}</dd>
         </dl>
       </section>
 
       <section className="panel teaching-card">
         <div className="card-title">教学解析</div>
-        <p>{activeModule === 'cell' ? info.teaching : moduleDetails[activeModule](crystal)}</p>
+        <p>{activeModule === 'cell' ? info.teaching : moduleDetails[activeModule](crystalType)}</p>
       </section>
     </aside>
   );

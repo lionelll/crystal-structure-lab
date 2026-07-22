@@ -118,6 +118,14 @@ export const crystals: Record<CrystalType, CrystalInfo> = {
   },
 };
 
+export function isCrystalType(value: string): value is CrystalType {
+  return Object.prototype.hasOwnProperty.call(crystals, value);
+}
+
+export function resolveCrystal(value: string | null | undefined): CrystalInfo {
+  return value && isCrystalType(value) ? crystals[value] : crystals.FCC;
+}
+
 export const defaultSettings: DisplaySettings = {
   modelStyle: 'schematic',
   showSupercell: false,

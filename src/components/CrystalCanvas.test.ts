@@ -37,7 +37,7 @@ import {
   stackingPositionScale,
   stackingSequence,
 } from './CrystalCanvas';
-import { crystals, defaultSettings, modules } from '../data/crystals';
+import { crystals, defaultSettings, isCrystalType, modules, resolveCrystal } from '../data/crystals';
 import {
   hcpGeometry,
   latticeGeometry,
@@ -101,6 +101,15 @@ describe('module and settings cleanup', () => {
     expect(crystals.BCC.radius).toBe('R = √3a / 4');
     expect(crystals.HCP.latticeConstant).toBe('a = 1, c/a = √(8/3)');
     expect(crystals.HCP.radius).toBe('R = a / 2');
+  });
+
+  it('rejects invalid metal crystal ids and falls back to FCC data', () => {
+    expect(isCrystalType('BCC')).toBe(true);
+    expect(isCrystalType('')).toBe(false);
+    expect(isCrystalType('unknown')).toBe(false);
+    expect(resolveCrystal('')).toBe(crystals.FCC);
+    expect(resolveCrystal('unknown')).toBe(crystals.FCC);
+    expect(resolveCrystal(undefined)).toBe(crystals.FCC);
   });
 });
 

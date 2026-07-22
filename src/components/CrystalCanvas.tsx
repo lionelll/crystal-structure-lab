@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { crystals, type CrystalType, type DisplaySettings, type ModelStyle, type ModuleId } from '../data/crystals';
+import { crystals, resolveCrystal, type CrystalType, type DisplaySettings, type ModelStyle, type ModuleId } from '../data/crystals';
 import {
   hcpCellAtoms,
   hcpCellOffset,
@@ -243,7 +243,8 @@ function createAtomMaterial(color: THREE.ColorRepresentation, options: AtomMater
   });
 }
 
-export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function CrystalCanvas({ crystal, activeModule, settings }, ref) {
+export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function CrystalCanvas({ crystal: crystalValue, activeModule, settings }, ref) {
+  const crystal = resolveCrystal(crystalValue).type;
   const mountRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -254,6 +255,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   const moduleRef = useRef(activeModule);
   const [coordinationTarget, setCoordinationTarget] = useState<Vec3Tuple | null>(null);
   const [selectedGapIndex, setSelectedGapIndex] = useState(0);
+  const [renderError, setRenderError] = useState<Error | null>(null);
   const coordAnimRef = useRef<{ objects: THREE.Object3D[]; startTime: number }>({ objects: [], startTime: 0 });
   const centerPulseRef = useRef<THREE.Mesh | null>(null);
   const dynamicClippingRef = useRef<DynamicClippingPlane[]>([]);
@@ -311,6 +313,11 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     renderer.localClippingEnabled = true;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      setRenderError(new Error('WebGL context lost.'));
+    };
+    renderer.domElement.addEventListener('webglcontextlost', handleContextLost);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -402,7 +409,13 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         const mat = pulse.material as THREE.MeshBasicMaterial;
         mat.opacity = 0.15 + 0.08 * Math.sin(t * 3.5);
       }
-      renderer.render(scene, camera);
+      try {
+        renderer.render(scene, camera);
+      } catch (error) {
+        disposed = true;
+        cancelAnimationFrame(frame);
+        setRenderError(error instanceof Error ? error : new Error('Three.js rendering failed.'));
+      }
     };
     animate();
 
@@ -412,6 +425,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       if (cameraTransitionFrameRef.current !== null) cancelAnimationFrame(cameraTransitionFrameRef.current);
       resizeObserver.disconnect();
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
+      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
       controls.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
@@ -594,6 +608,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       cameraTransitionFrameRef.current = null;
     };
   }, [coordinationTarget]);
+
+  if (renderError) throw renderError;
 
   return (
     <div className="viewport-wrap">
