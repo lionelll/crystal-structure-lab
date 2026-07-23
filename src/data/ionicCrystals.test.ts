@@ -17,8 +17,11 @@ import {
   centeredIonicPosition,
   createIonicBravaisPoints,
   createIonicVisualSites,
+  createWurtziteHexPrismFrameSegments,
+  createWurtziteHexPrismVisualSites,
   ionicAtomRadius,
   ionicCameraPreset,
+  ionicIonSiteVisualState,
   ION_SITE_MUTED_OPACITY,
   WURTZITE_CAMERA_DIRECTION,
 } from '../components/IonicCrystalCanvas';
@@ -156,12 +159,21 @@ describe('ionic lattice geometry', () => {
 
   it('uses one shared muted opacity for every ion-site selection', () => {
     expect(ION_SITE_MUTED_OPACITY).toBe(0.14);
+    ionicCrystalOrder.forEach(() => {
+      expect(ionicIonSiteVisualState(false)).toEqual({
+        transparent: true,
+        opacity: 0.14,
+        depthWrite: true,
+        emissiveIntensity: 0,
+        scale: 0.96,
+      });
+    });
   });
 
-  it('uses the measured wurtzite ratio and internal parameter with tetrahedral neighbors', () => {
+  it('uses the measured wurtzite ratio and ideal internal parameter with tetrahedral neighbors', () => {
     const crystal = ionicCrystals['zns-hex'];
     expect(WURTZITE_C_OVER_A).toBeCloseTo(1.63777, 5);
-    expect(WURTZITE_U).toBeCloseTo(0.3748, 6);
+    expect(WURTZITE_U).toBe(3 / 8);
     const zincIndex = crystal.sites.findIndex((site) => site.speciesId === 'zn');
     const shell = ionicCoordinationShell(crystal, {
       siteIndex: zincIndex,
@@ -171,6 +183,40 @@ describe('ionic lattice geometry', () => {
     expect(new Set(shell.map((neighbor) => neighbor.speciesId))).toEqual(new Set(['s']));
     expect(Math.max(...shell.map((neighbor) => neighbor.distance))
       - Math.min(...shell.map((neighbor) => neighbor.distance))).toBeLessThan(0.01);
+  });
+
+  it('renders the wurtzite display cell as three primitive cells in a full hexagonal prism', () => {
+    const crystal = ionicCrystals['zns-hex'];
+    const sites = createWurtziteHexPrismVisualSites(crystal, 1);
+    const bySpecies = (speciesId: string) => sites.filter((site) => site.speciesId === speciesId);
+    const sulfurSites = bySpecies('s');
+    const zincSites = bySpecies('zn');
+    const effectiveCount = (speciesId: string) => bySpecies(speciesId)
+      .reduce((total, site) => total + (site.displayWeight ?? 1), 0);
+    const layerCounts = (layerSites: typeof sites) => Object.values(
+      layerSites.reduce<Record<string, number>>((counts, site) => {
+        const key = site.position.z.toFixed(6);
+        counts[key] = (counts[key] ?? 0) + 1;
+        return counts;
+      }, {}),
+    ).sort((left, right) => left - right);
+
+    expect(sulfurSites).toHaveLength(17);
+    expect(zincSites).toHaveLength(10);
+    expect(layerCounts(sulfurSites)).toEqual([3, 7, 7]);
+    expect(layerCounts(zincSites)).toEqual([3, 7]);
+    expect(effectiveCount('s')).toBeCloseTo(6, 8);
+    expect(effectiveCount('zn')).toBeCloseTo(6, 8);
+    expect(createWurtziteHexPrismFrameSegments(crystal, 1)).toHaveLength(43);
+    expect(createIonicBravaisPoints(crystal, 1)).toHaveLength(14);
+
+    const supercellSites = createWurtziteHexPrismVisualSites(crystal, 2);
+    crystal.species.forEach((species) => {
+      const effectiveSupercellCount = supercellSites
+        .filter((site) => site.speciesId === species.id)
+        .reduce((total, site) => total + (site.displayWeight ?? 1), 0);
+      expect(effectiveSupercellCount).toBeCloseTo(48, 8);
+    });
   });
 
   it.each([

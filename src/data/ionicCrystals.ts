@@ -63,7 +63,7 @@ export interface IonicNeighbor {
 
 const A = 2.65;
 export const WURTZITE_C_OVER_A = 6.2607 / 3.8227;
-export const WURTZITE_U = 0.3748;
+export const WURTZITE_U = 3 / 8;
 const cubic = (scale = A): [IonicVec3, IonicVec3, IonicVec3] => [
   [scale, 0, 0],
   [0, scale, 0],
@@ -191,7 +191,7 @@ export const ionicCrystals: Record<IonicCrystalId, IonicCrystalInfo> = {
     id: 'zns-hex',
     title: '六方ZnS型结构',
     shortLabel: '六方ZnS',
-    structureType: '纤锌矿型（B4）',
+    structureType: '六方 ZnS（纤锌矿 α-ZnS 完整晶胞）',
     latticeType: '简单六方点阵',
     lattice: [
       [A, 0, 0],
@@ -206,12 +206,12 @@ export const ionicCrystals: Record<IonicCrystalId, IonicCrystalInfo> = {
       { speciesId: 's', fractional: [1 / 3, 2 / 3, WURTZITE_U] },
       { speciesId: 's', fractional: [2 / 3, 1 / 3, WURTZITE_U + 0.5] },
     ],
-    ionPositions: 'Zn²⁺、S²⁻：两套沿c轴错移的六方子点阵',
-    ionCounts: 'Zn²⁺：2；S²⁻：2',
+    ionPositions: 'S²⁻：六方密堆积节点；Zn²⁺：一半四面体空隙（u=3/8）',
+    ionCounts: 'Zn²⁺：6；S²⁻：6',
     coordinationText: 'Zn²⁺：4；S²⁻：4',
     basis: 'Zn²⁺(1/3,2/3,0) + S²⁻(1/3,2/3,u)，并含 z+1/2 对应位点',
     basisIons: [{ speciesId: 'zn', count: 2 }, { speciesId: 's', count: 2 }],
-    teaching: '六方 ZnS 型又称纤锌矿型。S²⁻近似构成六方密堆积，Zn²⁺占据一半四面体空隙，密排层沿 c 轴呈 ABAB 重复。本模型采用 ZnS 的近似参数 c/a≈1.638、内部参数 u≈0.375；每个 Zn²⁺与 4 个 S²⁻形成 ZnS₄ 四面体，每个 S²⁻也为四配位。其局部配位与闪锌矿相同，差异主要来自层序。',
+    teaching: '六方 ZnS 型又称纤锌矿型或 α-ZnS。S²⁻近似构成沿 c 轴作 ABAB 重复的六方密堆积，Zn²⁺有序占据其中一半四面体空隙，理想内部参数 u=3/8。画面中的完整六棱柱由 3 个 P6₃mc 原胞拼合，顶点、棱上和上下边界离子按共享关系折算后含 6 个 Zn²⁺与 6 个 S²⁻，即 6 个 ZnS。每个 Zn²⁺由 4 个 S²⁻构成 ZnS₄ 四面体，每个 S²⁻同样为四配位；其局部配位与闪锌矿相同，二者主要区别在密排层序。',
   },
   caf2: {
     id: 'caf2',

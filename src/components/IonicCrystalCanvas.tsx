@@ -22,11 +22,12 @@ interface Props {
   settings: DisplaySettings;
 }
 
-interface VisualSite {
+export interface VisualSite {
   siteIndex: number;
   speciesId: string;
   fractional: IonicVec3;
   position: THREE.Vector3;
+  displayWeight?: number;
 }
 
 interface IonMeshEntry extends VisualSite {
@@ -39,6 +40,7 @@ interface SelectionContext {
   repeat: number;
   entries: IonMeshEntry[];
   layer: THREE.Group;
+  positionForFractional: (fractional: IonicVec3) => THREE.Vector3;
 }
 
 const boundaryOptions = (value: number) => Math.abs(value) < 1e-7 ? [0, 1] : [value];
@@ -48,6 +50,17 @@ export const IONIC_CAMERA_DIRECTION: IonicVec3 = [0.82, -0.4, 0.42];
 export const WURTZITE_CAMERA_DIRECTION: IonicVec3 = [0.74, 0.43, 0.52];
 export const ION_SITE_MUTED_OPACITY = 0.14;
 const IONIC_BODY_LIFT_INTENSITY = 0.14;
+const WURTZITE_PRISM_ORIGIN: IonicVec3 = [2 / 3, 1 / 3, 3 / 8];
+
+export function ionicIonSiteVisualState(selected: boolean) {
+  return {
+    transparent: !selected,
+    opacity: selected ? 1 : ION_SITE_MUTED_OPACITY,
+    depthWrite: true,
+    emissiveIntensity: selected ? 0.22 : 0,
+    scale: selected ? 1.08 : 0.96,
+  };
+}
 
 export function centeredIonicPosition(crystal: IonicCrystalInfo, fractional: IonicVec3, repeat: number) {
   const cartesian = fractionalToCartesian(crystal.lattice, fractional);
@@ -55,7 +68,102 @@ export function centeredIonicPosition(crystal: IonicCrystalInfo, fractional: Ion
   return new THREE.Vector3(cartesian[0] - center[0], cartesian[1] - center[1], cartesian[2] - center[2]);
 }
 
+function wurtzitePrismCenterTranslation(repeat: number): IonicVec3 {
+  return [1.5 * (repeat - 1), 1.5 * (repeat - 1), (repeat - 1) / 2];
+}
+
+export function wurtzitePrismPosition(
+  crystal: IonicCrystalInfo,
+  fractional: IonicVec3,
+  repeat: number,
+) {
+  const center = wurtzitePrismCenterTranslation(repeat);
+  const relative: IonicVec3 = [
+    fractional[0] - WURTZITE_PRISM_ORIGIN[0] - center[0],
+    fractional[1] - WURTZITE_PRISM_ORIGIN[1] - center[1],
+    fractional[2] - WURTZITE_PRISM_ORIGIN[2] - center[2],
+  ];
+  const cartesian = fractionalToCartesian(crystal.lattice, relative);
+  return new THREE.Vector3(...cartesian);
+}
+
+function isInsideWurtzitePrism(position: THREE.Vector3, radius: number) {
+  const height = Math.sqrt(3) * radius / 2;
+  const tolerance = 1e-6;
+  return Math.abs(position.y) <= height + tolerance
+    && Math.abs(position.x) + Math.abs(position.y) / Math.sqrt(3) <= radius + tolerance;
+}
+
+function wurtzitePrismTranslation(ix: number, iy: number, iz: number): IonicVec3 {
+  return [2 * ix + iy, ix + 2 * iy, iz];
+}
+
+export function createWurtziteHexPrismVisualSites(
+  crystal: IonicCrystalInfo,
+  repeat: number,
+): VisualSite[] {
+  const radius = Math.hypot(...crystal.lattice[0]);
+  const layerSpecs = [
+    { siteIndex: 3, zOffsets: [-1, 0], centerWeight: 1 / 2, boundaryWeight: 1 / 6 },
+    { siteIndex: 2, zOffsets: [0], centerWeight: 1, boundaryWeight: 1 },
+    { siteIndex: 0, zOffsets: [0], centerWeight: 1, boundaryWeight: 1 },
+    { siteIndex: 1, zOffsets: [0], centerWeight: 1, boundaryWeight: 1 / 3 },
+  ];
+  const baseSites: VisualSite[] = [];
+
+  layerSpecs.forEach(({ siteIndex, zOffsets, centerWeight, boundaryWeight }) => {
+    const site = crystal.sites[siteIndex];
+    zOffsets.forEach((zOffset) => {
+      for (let ix = -2; ix <= 2; ix++) {
+        for (let iy = -2; iy <= 2; iy++) {
+          const fractional: IonicVec3 = [
+            site.fractional[0] + ix,
+            site.fractional[1] + iy,
+            site.fractional[2] + zOffset,
+          ];
+          const position = wurtzitePrismPosition(crystal, fractional, 1);
+          if (!isInsideWurtzitePrism(position, radius)) continue;
+          const isCenter = Math.hypot(position.x, position.y) < 1e-6;
+          baseSites.push({
+            siteIndex,
+            speciesId: site.speciesId,
+            fractional,
+            position,
+            displayWeight: isCenter ? centerWeight : boundaryWeight,
+          });
+        }
+      }
+    });
+  });
+
+  const sites = new Map<string, VisualSite>();
+  for (let ix = 0; ix < repeat; ix++) {
+    for (let iy = 0; iy < repeat; iy++) {
+      for (let iz = 0; iz < repeat; iz++) {
+        const translation = wurtzitePrismTranslation(ix, iy, iz);
+        baseSites.forEach((site) => {
+          const fractional: IonicVec3 = [
+            site.fractional[0] + translation[0],
+            site.fractional[1] + translation[1],
+            site.fractional[2] + translation[2],
+          ];
+          const position = wurtzitePrismPosition(crystal, fractional, repeat);
+          const key = `${site.speciesId}|${position.toArray().map((value) => value.toFixed(6)).join('|')}`;
+          const existing = sites.get(key);
+          if (existing) {
+            existing.displayWeight = (existing.displayWeight ?? 0) + (site.displayWeight ?? 1);
+          } else {
+            sites.set(key, { ...site, fractional, position });
+          }
+        });
+      }
+    }
+  }
+  return [...sites.values()];
+}
+
 export function createIonicVisualSites(crystal: IonicCrystalInfo, repeat: number): VisualSite[] {
+  if (crystal.id === 'zns-hex') return createWurtziteHexPrismVisualSites(crystal, repeat);
   const sites = new Map<string, VisualSite>();
   for (let ix = 0; ix < repeat; ix++) {
     for (let iy = 0; iy < repeat; iy++) {
@@ -80,6 +188,7 @@ export function createIonicVisualSites(crystal: IonicCrystalInfo, repeat: number
 }
 
 export function createIonicBravaisPoints(crystal: IonicCrystalInfo, repeat: number) {
+  if (crystal.id === 'zns-hex') return createWurtziteHexPrismBravaisPoints(crystal, repeat);
   const points = new Map<string, THREE.Vector3>();
   for (let ix = 0; ix < repeat; ix++) {
     for (let iy = 0; iy < repeat; iy++) {
@@ -91,6 +200,37 @@ export function createIonicBravaisPoints(crystal: IonicCrystalInfo, repeat: numb
             const key = vectorKey(fractional);
             points.set(key, centeredIonicPosition(crystal, fractional, repeat));
           })));
+        });
+      }
+    }
+  }
+  return [...points.values()];
+}
+
+export function createWurtziteHexPrismBravaisPoints(crystal: IonicCrystalInfo, repeat: number) {
+  const radius = Math.hypot(...crystal.lattice[0]);
+  const height = Math.hypot(...crystal.lattice[2]) / 2;
+  const basePoints = [-height, height].flatMap((z) => [
+    new THREE.Vector3(0, 0, z),
+    ...Array.from({ length: 6 }, (_, index) => {
+      const angle = index * Math.PI / 3;
+      return new THREE.Vector3(radius * Math.cos(angle), radius * Math.sin(angle), z);
+    }),
+  ]);
+  const points = new Map<string, THREE.Vector3>();
+  const center = fractionalToCartesian(crystal.lattice, wurtzitePrismCenterTranslation(repeat));
+  for (let ix = 0; ix < repeat; ix++) {
+    for (let iy = 0; iy < repeat; iy++) {
+      for (let iz = 0; iz < repeat; iz++) {
+        const offset = fractionalToCartesian(crystal.lattice, wurtzitePrismTranslation(ix, iy, iz));
+        basePoints.forEach((point) => {
+          const translated = point.clone().add(new THREE.Vector3(
+            offset[0] - center[0],
+            offset[1] - center[1],
+            offset[2] - center[2],
+          ));
+          const key = translated.toArray().map((value) => value.toFixed(6)).join('|');
+          points.set(key, translated);
         });
       }
     }
@@ -281,7 +421,17 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
       });
     }
     root.add(layer);
-    selectionContextRef.current = { crystal, module: activeModule, repeat, entries, layer };
+    const positionForFractional = crystal.id === 'zns-hex'
+      ? (fractional: IonicVec3) => wurtzitePrismPosition(crystal, fractional, repeat)
+      : (fractional: IonicVec3) => centeredIonicPosition(crystal, fractional, repeat);
+    selectionContextRef.current = {
+      crystal,
+      module: activeModule,
+      repeat,
+      entries,
+      layer,
+      positionForFractional,
+    };
     addIonicAxes(root, crystal, repeat);
     setIonicCamera(camera, controls, crystal, repeat);
     root.rotation.set(0, 0, 0);
@@ -319,6 +469,9 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
       )}
       {activeModule === 'coordination' && !coordinationCenter && (
         <div className="stage-hint">点击任意离子查看最近邻配位</div>
+      )}
+      {crystal.id === 'zns-hex' && activeModule === 'cell' && (
+        <div className="stage-hint">六棱柱由 3 个 P6₃mc 原胞拼合，边界节点按共享关系折算为 6 个 ZnS</div>
       )}
       {activeModule === 'ion-sites' && (
         <div className="stage-hint">点击离子或图例，突出显示同类离子位置</div>
@@ -382,12 +535,13 @@ function updateSelection(
   if (context.module === 'ion-sites' && selectedSpecies) {
     context.entries.forEach((entry) => {
       const selected = entry.speciesId === selectedSpecies;
-      entry.mesh.material.transparent = !selected;
-      entry.mesh.material.opacity = selected ? 1 : ION_SITE_MUTED_OPACITY;
-      entry.mesh.material.depthWrite = selected;
+      const state = ionicIonSiteVisualState(selected);
+      entry.mesh.material.transparent = state.transparent;
+      entry.mesh.material.opacity = state.opacity;
+      entry.mesh.material.depthWrite = state.depthWrite;
       entry.mesh.material.emissive.set(selected ? speciesById.get(entry.speciesId)!.color : '#000000');
-      entry.mesh.material.emissiveIntensity = selected ? 0.22 : 0;
-      entry.mesh.scale.setScalar(selected ? 1.08 : 0.96);
+      entry.mesh.material.emissiveIntensity = state.emissiveIntensity;
+      entry.mesh.scale.setScalar(state.scale);
     });
     return;
   }
@@ -415,9 +569,9 @@ function updateSelection(
     }
   });
 
-  const centerPosition = centeredIonicPosition(context.crystal, coordinationCenter.fractional, context.repeat);
+  const centerPosition = context.positionForFractional(coordinationCenter.fractional);
   neighbors.forEach((neighbor) => {
-    const neighborPosition = centeredIonicPosition(context.crystal, neighbor.fractional, context.repeat);
+    const neighborPosition = context.positionForFractional(neighbor.fractional);
     addLine(context.layer, centerPosition, neighborPosition, '#ff6269');
     if (!existingKeys.has(siteKey(neighbor.siteIndex, neighbor.fractional))) {
       const ion = speciesById.get(neighbor.speciesId)!;
@@ -446,6 +600,12 @@ function createIonMaterial(
 }
 
 function addCellFrames(group: THREE.Group, crystal: IonicCrystalInfo, repeat: number) {
+  if (crystal.id === 'zns-hex') {
+    const points = createWurtziteHexPrismFrameSegments(crystal, repeat)
+      .flatMap(([start, end]) => [...start.toArray(), ...end.toArray()]);
+    addCellFrameSegments(group, points);
+    return;
+  }
   const edges: [number, number][] = [[0, 1], [1, 3], [3, 2], [2, 0], [4, 5], [5, 7], [7, 6], [6, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
   const points: number[] = [];
   for (let ix = 0; ix < repeat; ix++) {
@@ -462,9 +622,69 @@ function addCellFrames(group: THREE.Group, crystal: IonicCrystalInfo, repeat: nu
       }
     }
   }
+  addCellFrameSegments(group, points);
+}
+
+function addCellFrameSegments(group: THREE.Group, points: number[]) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
   group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: '#d7e7f7', transparent: true, opacity: 0.7 })));
+}
+
+export function createWurtziteHexPrismFrameSegments(
+  crystal: IonicCrystalInfo,
+  repeat: number,
+): Array<[THREE.Vector3, THREE.Vector3]> {
+  const radius = Math.hypot(...crystal.lattice[0]);
+  const halfHeight = Math.hypot(...crystal.lattice[2]) / 2;
+  const zLevels = [-halfHeight, 0, halfHeight];
+  const verticesAt = (z: number) => Array.from({ length: 6 }, (_, index) => {
+    const angle = index * Math.PI / 3;
+    return new THREE.Vector3(radius * Math.cos(angle), radius * Math.sin(angle), z);
+  });
+  const baseSegments: Array<[THREE.Vector3, THREE.Vector3]> = [];
+
+  zLevels.forEach((z) => {
+    const vertices = verticesAt(z);
+    vertices.forEach((vertex, index) => {
+      baseSegments.push([vertex, vertices[(index + 1) % vertices.length]]);
+      baseSegments.push([new THREE.Vector3(0, 0, z), vertex]);
+    });
+  });
+  const bottom = verticesAt(-halfHeight);
+  const top = verticesAt(halfHeight);
+  bottom.forEach((vertex, index) => baseSegments.push([vertex, top[index]]));
+  baseSegments.push([
+    new THREE.Vector3(0, 0, -halfHeight),
+    new THREE.Vector3(0, 0, halfHeight),
+  ]);
+
+  const segments = new Map<string, [THREE.Vector3, THREE.Vector3]>();
+  const center = fractionalToCartesian(crystal.lattice, wurtzitePrismCenterTranslation(repeat));
+  for (let ix = 0; ix < repeat; ix++) {
+    for (let iy = 0; iy < repeat; iy++) {
+      for (let iz = 0; iz < repeat; iz++) {
+        const translated = fractionalToCartesian(
+          crystal.lattice,
+          wurtzitePrismTranslation(ix, iy, iz),
+        );
+        const offset = new THREE.Vector3(
+          translated[0] - center[0],
+          translated[1] - center[1],
+          translated[2] - center[2],
+        );
+        baseSegments.forEach(([start, end]) => {
+          const nextStart = start.clone().add(offset);
+          const nextEnd = end.clone().add(offset);
+          const startKey = nextStart.toArray().map((value) => value.toFixed(6)).join('|');
+          const endKey = nextEnd.toArray().map((value) => value.toFixed(6)).join('|');
+          const key = [startKey, endKey].sort().join('~');
+          segments.set(key, [nextStart, nextEnd]);
+        });
+      }
+    }
+  }
+  return [...segments.values()];
 }
 
 function addBravaisPoints(group: THREE.Group, points: THREE.Vector3[]) {
@@ -521,13 +741,14 @@ function setIonicCamera(
 export function ionicCameraPreset(crystal: IonicCrystalInfo, repeat: number) {
   const lengths = crystal.lattice.map((vector) => Math.hypot(...vector));
   const distance = crystal.id === 'zns-hex'
-    ? Math.max(6.7, Math.max(...lengths) * repeat * 1.9)
+    ? Math.max(7.4, Math.max(...lengths) * repeat * 2.2)
     : Math.max(8.1, Math.max(...lengths) * repeat * 2.3);
   const direction = crystal.id === 'zns-hex' ? WURTZITE_CAMERA_DIRECTION : IONIC_CAMERA_DIRECTION;
+  const target: IonicVec3 = crystal.id === 'zns-hex' ? [0, 0, -0.24] : [0, 0, 0];
   return {
     up: [0, 0, 1] as IonicVec3,
-    position: direction.map((component) => component * distance) as IonicVec3,
-    target: [0, 0, 0] as IonicVec3,
+    position: direction.map((component, index) => component * distance + target[index]) as IonicVec3,
+    target,
   };
 }
 
