@@ -301,7 +301,7 @@ describe('interstitial topology and visuals', () => {
           expect(distances[2]).toBeGreaterThan(distances[1]);
           expect(distances[5]).toBeCloseTo(distances[2], 6);
         } else {
-          expect(distances.at(-1)! - distances[0]).toBeLessThan(1e-5);
+          expect(distances[distances.length - 1] - distances[0]).toBeLessThan(1e-5);
         }
       });
     });
