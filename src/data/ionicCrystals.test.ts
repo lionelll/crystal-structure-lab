@@ -93,6 +93,26 @@ describe('ionic crystal catalog', () => {
     });
   });
 
+  it.each(ionicCrystalOrder)('%s keeps its basis diagram consistent with lattice sites', (id) => {
+    const crystal = ionicCrystals[id];
+    const latticePointCount = crystal.latticePoints.length;
+    const basisIonCounts = Object.fromEntries(
+      crystal.basisIons.map((item) => [item.speciesId, item.count]),
+    );
+    const siteCounts = crystal.sites.reduce<Record<string, number>>((counts, site) => {
+      counts[site.speciesId] = (counts[site.speciesId] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    expect(crystal.sites.length % latticePointCount).toBe(0);
+    expect(crystal.basisIons.reduce((total, item) => total + item.count, 0))
+      .toBe(crystal.sites.length / latticePointCount);
+    crystal.species.forEach((species) => {
+      expect(siteCounts[species.id] % latticePointCount).toBe(0);
+      expect(basisIonCounts[species.id]).toBe(siteCounts[species.id] / latticePointCount);
+    });
+  });
+
   it('uses the requested concise teaching copy', () => {
     expect(ionicCrystals['zns-cubic'].teaching).not.toContain('沿 ⟨111⟩');
     expect(ionicCrystals.catio3.teaching).not.toContain('本页采用理想立方');

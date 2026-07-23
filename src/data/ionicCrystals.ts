@@ -210,7 +210,7 @@ export const ionicCrystals: Record<IonicCrystalId, IonicCrystalInfo> = {
     ionCounts: 'Zn²⁺：2；S²⁻：2',
     coordinationText: 'Zn²⁺：4；S²⁻：4',
     basis: 'Zn²⁺(1/3,2/3,0) + S²⁻(1/3,2/3,u)，并含 z+1/2 对应位点',
-    basisIons: [{ speciesId: 'zn', count: 1 }, { speciesId: 's', count: 1 }],
+    basisIons: [{ speciesId: 'zn', count: 2 }, { speciesId: 's', count: 2 }],
     teaching: '六方 ZnS 型又称纤锌矿型。S²⁻近似构成六方密堆积，Zn²⁺占据一半四面体空隙，密排层沿 c 轴呈 ABAB 重复。本模型采用 ZnS 的近似参数 c/a≈1.638、内部参数 u≈0.375；每个 Zn²⁺与 4 个 S²⁻形成 ZnS₄ 四面体，每个 S²⁻也为四配位。其局部配位与闪锌矿相同，差异主要来自层序。',
   },
   caf2: {
@@ -281,7 +281,7 @@ export const ionicCrystals: Record<IonicCrystalId, IonicCrystalInfo> = {
     ionCounts: 'Ti⁴⁺：2；O²⁻：4',
     coordinationText: 'Ti⁴⁺：6；O²⁻：3',
     basis: 'Ti⁴⁺(0,0,0)、Ti⁴⁺(1/2,1/2,1/2) + 4个O²⁻(u≈0.305)',
-    basisIons: [{ speciesId: 'ti', count: 1 }, { speciesId: 'o', count: 2 }],
+    basisIons: [{ speciesId: 'ti', count: 2 }, { speciesId: 'o', count: 4 }],
     teaching: 'TiO₂ 金红石型又称 C4 型结构，属于简单四方点阵。Ti⁴⁺位于顶角和体心等效位置，O²⁻占据由内部参数 u≈0.305 决定的 4f 位点。',
   },
 };
