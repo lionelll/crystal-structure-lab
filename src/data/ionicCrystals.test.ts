@@ -9,6 +9,8 @@ import {
   isIonicCrystalId,
   resolveIonicCrystal,
   ionicModules,
+  WURTZITE_C_OVER_A,
+  WURTZITE_U,
   type IonicCrystalId,
 } from './ionicCrystals';
 import {
@@ -17,6 +19,7 @@ import {
   createIonicVisualSites,
   ionicAtomRadius,
   ionicCameraPreset,
+  ION_SITE_MUTED_OPACITY,
   WURTZITE_CAMERA_DIRECTION,
 } from '../components/IonicCrystalCanvas';
 
@@ -28,12 +31,10 @@ const expectedCounts: Record<IonicCrystalId, Record<string, number>> = {
   caf2: { ca: 4, f: 8 },
   catio3: { ca: 1, ti: 1, o: 3 },
   'tio2-rutile': { ti: 2, o: 4 },
-  'sio2-beta-cristobalite': { si: 8, o: 16 },
-  mgal2o4: { mg: 8, al: 16, o: 32 },
 };
 
 describe('ionic crystal catalog', () => {
-  it('keeps all nine requested structures in menu order with chemical subscripts', () => {
+  it('keeps the seven supported structures in menu order with chemical subscripts', () => {
     expect(ionicCrystalOrder.map((id) => ionicCrystals[id].title)).toEqual([
       'CsCl型结构',
       'NaCl型结构',
@@ -42,8 +43,6 @@ describe('ionic crystal catalog', () => {
       'CaF₂型结构',
       'CaTiO₃型结构',
       'TiO₂(金红石)型结构',
-      'SiO₂(β-方石英)型结构',
-      'MgAl₂O₄型结构',
     ]);
   });
 
@@ -51,17 +50,16 @@ describe('ionic crystal catalog', () => {
     expect(ionicModules.map((module) => module.id)).toEqual(['cell', 'bravais', 'coordination', 'ion-sites']);
   });
 
-  it('opens only wurtzite with a teaching-oriented 2x2x2 default view', () => {
-    expect(ionicDefaultSupercell('zns-hex')).toBe(true);
-    ionicCrystalOrder
-      .filter((id) => id !== 'zns-hex')
-      .forEach((id) => expect(ionicDefaultSupercell(id)).toBe(false));
+  it('opens every ionic structure as a single cell by default', () => {
+    ionicCrystalOrder.forEach((id) => expect(ionicDefaultSupercell(id)).toBe(false));
   });
 
   it('rejects invalid structure ids and falls back to CsCl data', () => {
     expect(isIonicCrystalId('nacl')).toBe(true);
     expect(isIonicCrystalId('')).toBe(false);
     expect(isIonicCrystalId('unknown')).toBe(false);
+    expect(isIonicCrystalId('sio2-beta-cristobalite')).toBe(false);
+    expect(isIonicCrystalId('mgal2o4')).toBe(false);
     expect(resolveIonicCrystal('')).toBe(ionicCrystals.cscl);
     expect(resolveIonicCrystal('unknown')).toBe(ionicCrystals.cscl);
     expect(resolveIonicCrystal(undefined)).toBe(ionicCrystals.cscl);
@@ -86,6 +84,20 @@ describe('ionic crystal catalog', () => {
       crystal.basis,
       crystal.teaching,
     ].every((value) => value.trim().length > 0)).toBe(true);
+    expect(crystal.structureType).not.toMatch(/[cht][PIFR]\d+/);
+    expect(crystal.ionCounts.split('；').every((item) => item.includes('：'))).toBe(true);
+    expect(crystal.basisIons.length).toBeGreaterThan(0);
+    crystal.basisIons.forEach((item) => {
+      expect(crystal.species.some((species) => species.id === item.speciesId)).toBe(true);
+      expect(item.count).toBeGreaterThan(0);
+    });
+  });
+
+  it('uses the requested concise teaching copy', () => {
+    expect(ionicCrystals['zns-cubic'].teaching).not.toContain('沿 ⟨111⟩');
+    expect(ionicCrystals.catio3.teaching).not.toContain('本页采用理想立方');
+    expect(ionicCrystals.catio3.teaching).not.toContain('实际室温');
+    expect(ionicCrystals['tio2-rutile'].teaching).not.toContain('八面体沿 c 轴');
   });
 });
 
@@ -112,10 +124,33 @@ describe('ionic lattice geometry', () => {
     expect(createIonicBravaisPoints(ionicCrystals['zns-cubic'], 1)).toHaveLength(14);
   });
 
-  it('reduces only the visual radius of high-site-count cells', () => {
-    expect(ionicAtomRadius(ionicCrystals.cscl, 0.3)).toBe(0.3);
-    expect(ionicAtomRadius(ionicCrystals['sio2-beta-cristobalite'], 0.3)).toBeCloseTo(0.234, 8);
-    expect(ionicAtomRadius(ionicCrystals.mgal2o4, 0.3)).toBeCloseTo(0.204, 8);
+  it('keeps Ca slightly smaller than F and O in the requested models', () => {
+    const caF2 = ionicCrystals.caf2;
+    expect(caF2.species.find((item) => item.id === 'ca')!.radius)
+      .toBeLessThan(caF2.species.find((item) => item.id === 'f')!.radius);
+    const perovskite = ionicCrystals.catio3;
+    expect(perovskite.species.find((item) => item.id === 'ca')!.radius)
+      .toBeLessThan(perovskite.species.find((item) => item.id === 'o')!.radius);
+    expect(ionicAtomRadius(caF2, 0.3)).toBe(0.3);
+  });
+
+  it('uses one shared muted opacity for every ion-site selection', () => {
+    expect(ION_SITE_MUTED_OPACITY).toBe(0.14);
+  });
+
+  it('uses the measured wurtzite ratio and internal parameter with tetrahedral neighbors', () => {
+    const crystal = ionicCrystals['zns-hex'];
+    expect(WURTZITE_C_OVER_A).toBeCloseTo(1.63777, 5);
+    expect(WURTZITE_U).toBeCloseTo(0.3748, 6);
+    const zincIndex = crystal.sites.findIndex((site) => site.speciesId === 'zn');
+    const shell = ionicCoordinationShell(crystal, {
+      siteIndex: zincIndex,
+      fractional: crystal.sites[zincIndex].fractional,
+    });
+    expect(shell).toHaveLength(4);
+    expect(new Set(shell.map((neighbor) => neighbor.speciesId))).toEqual(new Set(['s']));
+    expect(Math.max(...shell.map((neighbor) => neighbor.distance))
+      - Math.min(...shell.map((neighbor) => neighbor.distance))).toBeLessThan(0.01);
   });
 
   it.each([
@@ -189,14 +224,4 @@ describe('ionic coordination topology', () => {
     });
   });
 
-  it('uses one Mg and three Al neighbors around spinel oxygen', () => {
-    const crystal = ionicCrystals.mgal2o4;
-    const siteIndex = crystal.sites.findIndex((site) => site.speciesId === 'o');
-    const shell = ionicCoordinationShell(crystal, { siteIndex, fractional: crystal.sites[siteIndex].fractional });
-    const composition = shell.reduce<Record<string, number>>((result, neighbor) => {
-      result[neighbor.speciesId] = (result[neighbor.speciesId] ?? 0) + 1;
-      return result;
-    }, {});
-    expect(composition).toEqual({ mg: 1, al: 3 });
-  });
 });

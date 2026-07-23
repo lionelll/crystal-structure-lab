@@ -19,7 +19,8 @@ type IconName =
   | 'rotate'
   | 'pause'
   | 'gear'
-  | 'mouse';
+  | 'mouse'
+  | 'chevron';
 
 const paths: Record<IconName, ReactElement> = {
   cube: <><path d="M12 2 4 6.5v11L12 22l8-4.5v-11L12 2Z" /><path d="M4 6.5 12 11l8-4.5" /><path d="M12 11v11" /></>,
@@ -41,6 +42,7 @@ const paths: Record<IconName, ReactElement> = {
   pause: <><circle cx="12" cy="12" r="9" /><path d="M9.5 8v8M14.5 8v8" /></>,
   gear: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.56V20h-3v-.08a1.7 1.7 0 0 0-1-1.56 1.7 1.7 0 0 0-1.86.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1H3v-3h.08a1.7 1.7 0 0 0 1.56-1 1.7 1.7 0 0 0-.34-1.86l-.06-.06 2.12-2.12.06.06A1.7 1.7 0 0 0 8.3 5.4a1.7 1.7 0 0 0 1-1.56V3h3v.08a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.86-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19.4 8.3a1.7 1.7 0 0 0 1.56 1H21v3h-.08a1.7 1.7 0 0 0-1.56 1Z" /></>,
   mouse: <><rect x="8" y="2.8" width="8" height="18.4" rx="4" /><path d="M12 6.5v4" /></>,
+  chevron: <path d="m7 10 5 5 5-5" />,
 };
 
 export function Icon({ name, ...props }: { name: IconName } & SVGProps<SVGSVGElement>) {

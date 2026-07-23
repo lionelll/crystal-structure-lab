@@ -96,7 +96,7 @@ export const atomVisualStyle = {
   bondRadius: 0.025,
 } as const;
 
-export const AUTO_ROTATE_RADIANS_PER_FRAME = 0.003;
+export const AUTO_ROTATE_RADIANS_PER_FRAME = 0.0015;
 export const COORDINATION_TRANSITION_MS = 450;
 
 export function coordinationTransitionEase(progress: number) {

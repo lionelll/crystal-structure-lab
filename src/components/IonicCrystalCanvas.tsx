@@ -46,6 +46,7 @@ const vectorKey = (value: IonicVec3) => value.map((coordinate) => coordinate.toF
 const siteKey = (siteIndex: number, fractional: IonicVec3) => `${siteIndex}|${vectorKey(fractional)}`;
 export const IONIC_CAMERA_DIRECTION: IonicVec3 = [0.82, -0.4, 0.42];
 export const WURTZITE_CAMERA_DIRECTION: IonicVec3 = [0.74, 0.43, 0.52];
+export const ION_SITE_MUTED_OPACITY = 0.14;
 const IONIC_BODY_LIFT_INTENSITY = 0.14;
 
 export function centeredIonicPosition(crystal: IonicCrystalInfo, fractional: IonicVec3, repeat: number) {
@@ -314,7 +315,7 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
         ))}
       </div>
       {activeModule === 'bravais' && (
-        <div className="basis-readout"><span>结构基元</span><strong>{crystal.basis}</strong></div>
+        <BasisReadout crystal={crystal} />
       )}
       {activeModule === 'coordination' && !coordinationCenter && (
         <div className="stage-hint">点击任意离子查看最近邻配位</div>
@@ -325,6 +326,40 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
     </div>
   );
 });
+
+function BasisReadout({ crystal }: { crystal: IonicCrystalInfo }) {
+  const speciesById = ionicSpeciesMap(crystal);
+  return (
+    <div className="basis-readout">
+      <span className="basis-readout-label">结构基元</span>
+      <div className="basis-ion-combination" aria-label={`结构基元：${crystal.basis}`}>
+        {crystal.basisIons.map((group, groupIndex) => {
+          const ion = speciesById.get(group.speciesId);
+          if (!ion) return null;
+          return (
+            <div className="basis-ion-part" key={group.speciesId}>
+              {groupIndex > 0 && <span className="basis-plus">+</span>}
+              <span className="basis-ion-balls" aria-hidden="true">
+                {Array.from({ length: group.count }, (_, index) => (
+                  <span
+                    className="basis-ion-ball"
+                    key={index}
+                    style={{
+                      background: `radial-gradient(circle at 32% 28%, #ffffff 0 8%, ${ion.color} 26%, ${ion.color} 62%, #07101b 145%)`,
+                      boxShadow: `0 0 10px ${ion.color}66`,
+                    }}
+                  />
+                ))}
+              </span>
+              <b>{ion.label}{group.count > 1 ? ` × ${group.count}` : ''}</b>
+            </div>
+          );
+        })}
+      </div>
+      <strong>{crystal.basis}</strong>
+    </div>
+  );
+}
 
 function updateSelection(
   context: SelectionContext,
@@ -339,6 +374,7 @@ function updateSelection(
     entry.mesh.material.emissiveIntensity = IONIC_BODY_LIFT_INTENSITY;
     entry.mesh.material.opacity = 1;
     entry.mesh.material.transparent = false;
+    entry.mesh.material.depthWrite = true;
     entry.mesh.scale.setScalar(1);
   });
   clearGroup(context.layer);
@@ -347,7 +383,8 @@ function updateSelection(
     context.entries.forEach((entry) => {
       const selected = entry.speciesId === selectedSpecies;
       entry.mesh.material.transparent = !selected;
-      entry.mesh.material.opacity = selected ? 1 : 0.14;
+      entry.mesh.material.opacity = selected ? 1 : ION_SITE_MUTED_OPACITY;
+      entry.mesh.material.depthWrite = selected;
       entry.mesh.material.emissive.set(selected ? speciesById.get(entry.speciesId)!.color : '#000000');
       entry.mesh.material.emissiveIntensity = selected ? 0.22 : 0;
       entry.mesh.scale.setScalar(selected ? 1.08 : 0.96);

@@ -87,8 +87,10 @@ button { border: 0; color: inherit; cursor: pointer; }
 .display-settings-tab { padding: 22px 0 18px; }
 .controls-panel { flex: 0 0 auto; }
 .panel-heading, .card-title { min-height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: transparent; border-bottom: 1px solid var(--line); font-size: 17px; font-weight: 800; }
+.panel-heading-button { width: 100%; border-radius: 0; cursor: default; text-align: left; }
 .panel-heading > span { display: inline-flex; align-items: center; gap: 8px; }
 .panel-heading svg { width: 18px; height: 18px; }
+.collapse-chevron { display: none; transition: transform .18s ease; }
 .switch-list { display: grid; gap: 10px; padding: 0 18px; }
 .toggle-row { display: grid; grid-template-columns: 22px 1fr; align-items: center; gap: 9px; color: #dce8f5; font-size: 14px; cursor: pointer; }
 .toggle-row.disabled { opacity: .45; cursor: not-allowed; }
@@ -124,9 +126,16 @@ button { border: 0; color: inherit; cursor: pointer; }
 .ionic-legend button:disabled { cursor: default; }
 .ionic-legend button:not(:disabled):hover, .ionic-legend button.active { background: rgba(255,255,255,.1); color: #fff; }
 .ionic-legend button > span { width: 12px; height: 12px; flex: 0 0 auto; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
-.basis-readout { position: absolute; z-index: 5; left: 50%; bottom: 24px; width: min(720px, calc(100% - 48px)); transform: translateX(-50%); display: flex; align-items: baseline; justify-content: center; gap: 12px; padding: 12px 16px; border: 1px solid rgba(68,167,255,.32); border-radius: 7px; background: rgba(5,15,27,.84); color: #eaf5ff; text-align: center; backdrop-filter: blur(8px); }
-.basis-readout span { flex: 0 0 auto; color: #7dd0ff; font-size: 13px; font-weight: 800; }
+.basis-readout { position: absolute; z-index: 5; left: 50%; bottom: 24px; width: min(820px, calc(100% - 48px)); transform: translateX(-50%); display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; justify-content: center; gap: 14px; padding: 10px 16px; border: 1px solid rgba(68,167,255,.32); border-radius: 7px; background: rgba(5,15,27,.84); color: #eaf5ff; text-align: center; backdrop-filter: blur(8px); }
+.basis-readout-label { flex: 0 0 auto; color: #7dd0ff; font-size: 13px; font-weight: 800; }
 .basis-readout strong { font-size: 14px; line-height: 1.55; }
+.basis-ion-combination { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.basis-ion-part { display: flex; align-items: center; gap: 6px; }
+.basis-ion-part b { color: #f3f8ff; font-size: 12px; white-space: nowrap; }
+.basis-ion-balls { display: flex; align-items: center; }
+.basis-ion-ball { width: 24px; height: 24px; flex: 0 0 auto; margin-left: -4px; border: 1px solid rgba(255,255,255,.36); border-radius: 50%; }
+.basis-ion-ball:first-child { margin-left: 0; }
+.basis-plus { color: #8fa5bd; font-size: 15px; font-weight: 800; }
 .stage-hint { position: absolute; z-index: 5; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100% - 48px); padding: 9px 14px; border-radius: 6px; background: rgba(5,15,27,.76); color: #b8c9dc; font-size: 13px; white-space: nowrap; pointer-events: none; }
 .info-card { min-height: 0; flex: 0 0 auto; }
 .info-grid { display: grid; grid-template-columns: minmax(138px, 45%) minmax(0, 1fr); gap: 0; margin: 0; padding: 18px 24px 25px; }
@@ -161,6 +170,11 @@ button { border: 0; color: inherit; cursor: pointer; }
   .stage-column { order: 2; }
   .right-rail { order: 3; grid-template-columns: 1fr; }
   .ionic-legend { top: 76px; right: 12px; }
+  .panel-heading-button { cursor: pointer; }
+  .collapse-chevron { display: block; flex: 0 0 auto; }
+  .mobile-collapsible.is-collapsed .collapsible-content { display: none; }
+  .mobile-collapsible.is-collapsed .collapse-chevron { transform: rotate(-90deg); }
+  .crystal-selection-panel.is-collapsed { padding-bottom: 0; }
 }
 @media (max-width: 520px) {
   .brand { gap: 9px; }
@@ -177,6 +191,9 @@ button { border: 0; color: inherit; cursor: pointer; }
   .ionic-structure-select { width: 134px; }
   .ionic-legend { top: 72px; right: 8px; padding: 7px; }
   .ionic-legend button { min-width: 76px; height: 29px; font-size: 12px; }
-  .basis-readout { bottom: 12px; width: calc(100% - 20px); display: grid; gap: 4px; padding: 9px 10px; }
+  .basis-readout { bottom: 12px; width: calc(100% - 20px); grid-template-columns: 1fr; gap: 6px; padding: 9px 10px; }
+  .basis-ion-combination { flex-wrap: wrap; gap: 5px 8px; }
+  .basis-ion-ball { width: 21px; height: 21px; }
+  .basis-readout strong { font-size: 12px; }
   .stage-hint { bottom: 12px; max-width: calc(100% - 20px); white-space: normal; text-align: center; }
 }

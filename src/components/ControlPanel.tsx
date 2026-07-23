@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { isCrystalType, modules, type CrystalType, type DisplaySettings, type ModuleId } from '../data/crystals';
 import {
   ionicCrystalOrder,
@@ -34,6 +35,9 @@ const moduleIcons: Record<ModuleId | IonicModuleId, Parameters<typeof Icon>[0]['
   'ion-sites': 'nodes',
 };
 
+const isMobileViewport = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches;
+const defaultPanelExpanded = () => !isMobileViewport();
+
 export function ControlPanel({
   family,
   activeModule,
@@ -48,74 +52,110 @@ export function ControlPanel({
 }: Props) {
   const patch = (partial: Partial<DisplaySettings>) => onSettingsChange({ ...settings, ...partial });
   const activeModules = family === 'metal' ? modules : ionicModules;
+  const [crystalSelectionExpanded, setCrystalSelectionExpanded] = useState(defaultPanelExpanded);
+  const [modulesExpanded, setModulesExpanded] = useState(defaultPanelExpanded);
+  const collapseOnMobile = (collapse: () => void) => {
+    if (isMobileViewport()) collapse();
+  };
 
   return (
     <aside className="left-rail panel-stack">
-      <section className="panel crystal-selection-panel">
-        <div className="panel-heading crystal-selection-heading">
+      <section className={`panel crystal-selection-panel mobile-collapsible ${crystalSelectionExpanded ? 'is-expanded' : 'is-collapsed'}`}>
+        <button
+          type="button"
+          className="panel-heading panel-heading-button crystal-selection-heading"
+          aria-expanded={crystalSelectionExpanded}
+          aria-controls="crystal-selection-content"
+          onClick={() => {
+            if (isMobileViewport()) setCrystalSelectionExpanded((current) => !current);
+          }}
+        >
           <span>晶体选择</span>
-        </div>
-        <div className="crystal-family-list">
-          <div className={`crystal-family-card ${family === 'metal' ? 'active' : ''}`}>
-            <button type="button" className="crystal-family-button" onClick={() => onFamilyChange('metal')}>
-              <Icon name="cube" />
-              <span>纯金属的晶体结构</span>
-            </button>
-            {family === 'metal' && (
-              <select
-                value={crystal}
-                onChange={(event) => {
-                  const { value } = event.currentTarget;
-                  if (isCrystalType(value)) onCrystalChange(value);
-                }}
-                aria-label="纯金属的晶体结构"
-              >
-                <option value="FCC">FCC</option>
-                <option value="BCC">BCC</option>
-                <option value="HCP">HCP</option>
-              </select>
-            )}
-          </div>
+          <Icon className="collapse-chevron" name="chevron" />
+        </button>
+        <div className="collapsible-content" id="crystal-selection-content">
+          <div className="crystal-family-list">
+            <div className={`crystal-family-card ${family === 'metal' ? 'active' : ''}`}>
+              <button type="button" className="crystal-family-button" onClick={() => onFamilyChange('metal')}>
+                <Icon name="cube" />
+                <span>纯金属的晶体结构</span>
+              </button>
+              {family === 'metal' && (
+                <select
+                  value={crystal}
+                  onChange={(event) => {
+                    const { value } = event.currentTarget;
+                    if (isCrystalType(value)) {
+                      onCrystalChange(value);
+                      collapseOnMobile(() => setCrystalSelectionExpanded(false));
+                    }
+                  }}
+                  aria-label="纯金属的晶体结构"
+                >
+                  <option value="FCC">FCC</option>
+                  <option value="BCC">BCC</option>
+                  <option value="HCP">HCP</option>
+                </select>
+              )}
+            </div>
 
-          <div className={`crystal-family-card ionic ${family === 'ionic' ? 'active' : ''}`}>
-            <button type="button" className="crystal-family-button" onClick={() => onFamilyChange('ionic')}>
-              <Icon name="lattice" />
-              <span>离子晶体结构</span>
-            </button>
-            {family === 'ionic' && (
-              <select
-                className="ionic-structure-select"
-                value={ionicCrystal}
-                onChange={(event) => {
-                  const { value } = event.currentTarget;
-                  if (isIonicCrystalId(value)) onIonicCrystalChange(value);
-                }}
-                aria-label="离子晶体结构"
-              >
-                {ionicCrystalOrder.map((id) => <option key={id} value={id}>{ionicCrystals[id].title}</option>)}
-              </select>
-            )}
+            <div className={`crystal-family-card ionic ${family === 'ionic' ? 'active' : ''}`}>
+              <button type="button" className="crystal-family-button" onClick={() => onFamilyChange('ionic')}>
+                <Icon name="lattice" />
+                <span>离子晶体结构</span>
+              </button>
+              {family === 'ionic' && (
+                <select
+                  className="ionic-structure-select"
+                  value={ionicCrystal}
+                  onChange={(event) => {
+                    const { value } = event.currentTarget;
+                    if (isIonicCrystalId(value)) {
+                      onIonicCrystalChange(value);
+                      collapseOnMobile(() => setCrystalSelectionExpanded(false));
+                    }
+                  }}
+                  aria-label="离子晶体结构"
+                >
+                  {ionicCrystalOrder.map((id) => <option key={id} value={id}>{ionicCrystals[id].title}</option>)}
+                </select>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="panel module-panel">
-        <div className="panel-heading">
+      <section className={`panel module-panel mobile-collapsible ${modulesExpanded ? 'is-expanded' : 'is-collapsed'}`}>
+        <button
+          type="button"
+          className="panel-heading panel-heading-button"
+          aria-expanded={modulesExpanded}
+          aria-controls="module-list-content"
+          onClick={() => {
+            if (isMobileViewport()) setModulesExpanded((current) => !current);
+          }}
+        >
           <span>功能模块</span>
-        </div>
-        <div className="module-list">
-          {activeModules.map((item) => (
+          <Icon className="collapse-chevron" name="chevron" />
+        </button>
+        <div className="collapsible-content" id="module-list-content">
+          <div className="module-list">
+            {activeModules.map((item) => (
               <button
                 type="button"
                 key={item.id}
                 className={`module-row ${activeModule === item.id ? 'active' : ''}`}
-                onClick={() => onModuleChange(item.id)}
+                onClick={() => {
+                  onModuleChange(item.id);
+                  collapseOnMobile(() => setModulesExpanded(false));
+                }}
                 title={item.summary}
               >
                 <Icon name={moduleIcons[item.id]} />
                 <span>{item.title}</span>
               </button>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 

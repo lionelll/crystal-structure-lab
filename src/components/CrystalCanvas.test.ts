@@ -172,7 +172,7 @@ describe('atom and bond visuals', () => {
     expect(atomVisualStyle.shininess).toBe(80);
     expect(atomVisualStyle.bondRadius).toBe(0.025);
     expect(defaultSettings.autoRotate).toBe(true);
-    expect(AUTO_ROTATE_RADIANS_PER_FRAME).toBe(0.003);
+    expect(AUTO_ROTATE_RADIANS_PER_FRAME).toBe(0.0015);
   });
 });
 
