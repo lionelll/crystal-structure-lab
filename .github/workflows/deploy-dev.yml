@@ -1,0 +1,84 @@
+name: Deploy dev to Alibaba Cloud test
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crystal-structure-lab-dev
+  cancel-in-progress: true
+
+jobs:
+  test-build-deploy:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEPLOY_ROOT: /var/www/crystal-dev
+      DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+      DEV_SSH_PORT: ${{ secrets.DEV_SSH_PORT }}
+      DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Write deployment metadata
+        run: |
+          deployed_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          printf '{"version":"dev","commit":"%s","deployedAt":"%s","environment":"test"}\n' \
+            "$GITHUB_SHA" "$deployed_at" > dist/release.json
+
+      - name: Configure pinned SSH access
+        env:
+          DEV_SSH_PRIVATE_KEY: ${{ secrets.DEV_SSH_PRIVATE_KEY }}
+          DEV_SSH_KNOWN_HOSTS: ${{ secrets.DEV_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$DEV_SSH_HOST"
+          test -n "$DEV_SSH_PORT"
+          test -n "$DEV_SSH_USER"
+          test -n "$DEV_SSH_PRIVATE_KEY"
+          test -n "$DEV_SSH_KNOWN_HOSTS"
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEV_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEV_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+
+      - name: Upload immutable release
+        run: |
+          release_dir="$DEPLOY_ROOT/releases/$GITHUB_SHA"
+          ssh -p "$DEV_SSH_PORT" "$DEV_SSH_USER@$DEV_SSH_HOST" \
+            "mkdir -p '$release_dir'"
+          rsync -az --delete \
+            -e "ssh -p $DEV_SSH_PORT" \
+            dist/ "$DEV_SSH_USER@$DEV_SSH_HOST:$release_dir/"
+
+      - name: Activate and verify release
+        run: |
+          ssh -p "$DEV_SSH_PORT" "$DEV_SSH_USER@$DEV_SSH_HOST" \
+            "set -eu; \
+             cd '$DEPLOY_ROOT'; \
+             ln -sfn 'releases/$GITHUB_SHA' current.next; \
+             mv -Tf current.next current; \
+             test \"\$(readlink current)\" = 'releases/$GITHUB_SHA'; \
+             curl -fsS http://127.0.0.1:8080/release.json"

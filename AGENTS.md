@@ -15,7 +15,7 @@
 ```text
 feature/* 或 fix/*
         ↓
-      dev          -> 测试环境（待配置）
+      dev          -> 阿里云测试环境（自动部署）
         ↓
      release       -> 正式环境（部署精确 Tag）
         ↓
