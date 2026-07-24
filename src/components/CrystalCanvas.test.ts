@@ -27,7 +27,6 @@ import {
   getGapPositions,
   crystalAxisVectors,
   missingPeriodicGapNeighbors,
-  nearestNeighborBondPairs,
   packingPlaneColor,
   packingDirectionStyle,
   polyhedronEdges,
@@ -41,7 +40,6 @@ import { crystals, defaultSettings, isCrystalType, modules, resolveCrystal } fro
 import {
   hcpGeometry,
   latticeGeometry,
-  sectionClippingPlaneSpec,
   type CrystalType,
 } from '../data/latticeGeometry';
 
@@ -54,7 +52,7 @@ function renderPositionKey(point: THREE.Vector3) {
 }
 
 function nearestDistance(crystal: CrystalType) {
-  const atoms = createAtoms(crystal, 1, false, 'cell').map((atom) => atom.position);
+  const atoms = createAtoms(crystal, 1, 'cell').map((atom) => atom.position);
   let nearest = Number.POSITIVE_INFINITY;
   for (let i = 0; i < atoms.length; i++) {
     for (let j = i + 1; j < atoms.length; j++) {
@@ -78,15 +76,9 @@ describe('module and settings cleanup', () => {
     ]);
   });
 
-  it('removes density, carbon, optional frame controls and speed controls from data', () => {
+  it('removes unused display modes, density, carbon, optional frame controls and speed controls from data', () => {
     expect(modules.some(({ id }) => ['density', 'carbon'].includes(id))).toBe(false);
-    expect(Object.keys(defaultSettings)).toEqual([
-      'modelStyle',
-      'showSupercell',
-      'autoRotate',
-      'exploded',
-      'sectionView',
-    ]);
+    expect(Object.keys(defaultSettings)).toEqual(['showSupercell', 'autoRotate']);
     Object.values(crystals).forEach((info) => {
       expect(info).not.toHaveProperty('apf');
       expect(info).not.toHaveProperty('formula');
@@ -132,45 +124,19 @@ describe('atom and bond visuals', () => {
     const ratio = crystal === 'HCP'
       ? atomVisualStyle.hcpSchematicRadiusOverA
       : atomVisualStyle.cubicSchematicRadiusOverA;
-    expect(atomRenderRadius(crystal, 'schematic')).toBeCloseTo(ratio * latticeGeometry[crystal].worldA, 8);
+    expect(atomRenderRadius(crystal)).toBeCloseTo(ratio * latticeGeometry[crystal].worldA, 8);
   });
 
   it('uses the same displayed reference-sphere radius for FCC, BCC and HCP', () => {
-    const fccRadius = atomRenderRadius('FCC', 'schematic');
-    expect(atomRenderRadius('BCC', 'schematic')).toBeCloseTo(fccRadius, 8);
-    expect(atomRenderRadius('HCP', 'schematic')).toBeCloseTo(fccRadius, 8);
-  });
-
-  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s ball-stick atoms are 60% of reference spheres', (crystal) => {
-    expect(atomRenderRadius(crystal, 'ball-stick')).toBeCloseTo(
-      atomRenderRadius(crystal, 'schematic') * 0.6,
-      8,
-    );
-  });
-
-  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s rigid atoms retain contact radius', (crystal) => {
-    expect(atomRenderRadius(crystal, 'rigid')).toBeCloseTo(
-      latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA,
-      8,
-    );
-  });
-
-  it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s bonds contain unique nearest-neighbor pairs only', (crystal) => {
-    const atoms = createAtoms(crystal, 2, false, 'cell');
-    const pairs = nearestNeighborBondPairs(atoms, crystal);
-    const expectedDistance = 2 * latticeGeometry[crystal].atomRadiusOverA * latticeGeometry[crystal].worldA;
-    expect(pairs.length).toBeGreaterThan(0);
-    expect(new Set(pairs.map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`)).size).toBe(pairs.length);
-    pairs.forEach(([a, b]) => {
-      expect(atoms[a].position.distanceTo(atoms[b].position)).toBeCloseTo(expectedDistance, 5);
-    });
+    const fccRadius = atomRenderRadius('FCC');
+    expect(atomRenderRadius('BCC')).toBeCloseTo(fccRadius, 8);
+    expect(atomRenderRadius('HCP')).toBeCloseTo(fccRadius, 8);
   });
 
   it('keeps the reference material and fixed animation values', () => {
     expect(atomVisualStyle.baseColor).toBe('#38bdf8');
     expect(atomVisualStyle.specularColor).toBe('#888888');
     expect(atomVisualStyle.shininess).toBe(80);
-    expect(atomVisualStyle.bondRadius).toBe(0.025);
     expect(defaultSettings.autoRotate).toBe(true);
     expect(AUTO_ROTATE_RADIANS_PER_FRAME).toBe(0.0015);
   });
@@ -193,7 +159,7 @@ describe('independent Bravais lattice sites', () => {
 
   it('renders Bravais sites as small position points instead of atom-sized spheres', () => {
     expect(bravaisPointStyle).toEqual({ color: '#7dd0ff', size: 0.095 });
-    expect(bravaisPointStyle.size).toBeLessThan(atomRenderRadius('FCC', 'schematic') / 3);
+    expect(bravaisPointStyle.size).toBeLessThan(atomRenderRadius('FCC') / 3);
   });
 
   it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s 2x2x2 lattice expands without duplicate sites', (crystal) => {
@@ -272,7 +238,7 @@ describe('interstitial topology and visuals', () => {
     ['HCP', 'tetra'],
     ['HCP', 'octa'],
   ] as const)('%s %s 2x2x2 cage endpoints match rendered atom centers', (crystal, kind) => {
-    const atoms = createAtoms(crystal, 2, false, kind);
+    const atoms = createAtoms(crystal, 2, kind);
     const sites = getGapPositions(crystal, kind, 2);
     const renderedKeys = new Set(atoms.map((atom) => positionKey(atom.position)));
     expect(sites.length).toBeGreaterThan(getGapPositions(crystal, kind, 1).length);
@@ -290,7 +256,7 @@ describe('interstitial topology and visuals', () => {
     ['HCP', 'octa'],
   ] as const)('%s %s uses the correct periodic coordination geometry for every displayed site', (crystal, kind) => {
     [1, 2].forEach((repeat) => {
-      const atoms = createAtoms(crystal, repeat, false, kind);
+      const atoms = createAtoms(crystal, repeat, kind);
       getGapPositions(crystal, kind, repeat).forEach((site) => {
         const surrounding = findSurroundingAtoms(crystal, site, kind, atoms, repeat);
         const distances = surrounding.map((position) => position.distanceTo(site)).sort((a, b) => a - b);
@@ -310,7 +276,7 @@ describe('interstitial topology and visuals', () => {
   it('adds only missing periodic atoms to a selected boundary cage', () => {
     const crystal: CrystalType = 'FCC';
     const kind = 'octa' as const;
-    const atoms = createAtoms(crystal, 1, false, kind);
+    const atoms = createAtoms(crystal, 1, kind);
     const renderedKeys = new Set(atoms.map((atom) => renderPositionKey(atom.position)));
     const site = getGapPositions(crystal, kind).find((position) => Math.abs(position.y + latticeGeometry.FCC.worldA / 2) < 1e-6)!;
     const surrounding = findSurroundingAtoms(crystal, site, kind, atoms, 1);
@@ -325,7 +291,7 @@ describe('interstitial topology and visuals', () => {
       atoms,
       0,
       1,
-      atomRenderRadius(crystal, 'schematic'),
+      atomRenderRadius(crystal),
       renderedKeys,
     );
 
@@ -338,7 +304,7 @@ describe('interstitial topology and visuals', () => {
   });
 
   it('keeps FCC 2x2x2 octahedral sites separate from matrix atoms', () => {
-    const atoms = createAtoms('FCC', 2, false, 'octa').map((atom) => atom.position);
+    const atoms = createAtoms('FCC', 2, 'octa').map((atom) => atom.position);
     getGapPositions('FCC', 'octa', 2).forEach((site) => {
       expect(Math.min(...atoms.map((atom) => atom.distanceTo(site)))).toBeGreaterThan(1e-5);
     });
@@ -353,7 +319,7 @@ describe('selection layer continuity', () => {
     const root = new THREE.Group();
     const selectionLayer = new THREE.Group();
     const pickables: THREE.Object3D[] = [];
-    const atoms = createAtoms('FCC', 1, false, kind);
+    const atoms = createAtoms('FCC', 1, kind);
     const { positions, meshes } = addGapTargets(root, 'FCC', kind, 1, pickables);
     root.add(selectionLayer);
     const originalTargets = [...meshes];
@@ -368,7 +334,7 @@ describe('selection layer continuity', () => {
 
   it('reuses coordination atom meshes while applying a new periodic shell', () => {
     const root = new THREE.Group();
-    const atoms = createAtoms('FCC', 1, false, 'coordination');
+    const atoms = createAtoms('FCC', 1, 'coordination');
     const atomMeshes = new Map<string, THREE.Mesh>();
     atoms.forEach((atom) => {
       const mesh = new THREE.Mesh(
@@ -417,7 +383,7 @@ describe('stacking models', () => {
     ['HCP', 3],
   ] as const)('%s uses one conventional cell across %i stacking layers', (crystal, layerCount) => {
     const atoms = createStackingAtoms(crystal);
-    expect(atoms).toHaveLength(createAtoms(crystal, 1, false, 'cell').length);
+    expect(atoms).toHaveLength(createAtoms(crystal, 1, 'cell').length);
     const layerCoordinates = atoms.map(({ position }) => (
       crystal === 'FCC' ? position.x + position.y + position.z : position.z
     ));
@@ -436,10 +402,10 @@ describe('stacking models', () => {
   });
 
   it('uses the same displayed sphere radius as the cell model for all structures', () => {
-    const expected = atomRenderRadius('FCC', 'schematic');
+    const expected = atomRenderRadius('FCC');
     (['FCC', 'BCC', 'HCP'] as CrystalType[]).forEach((crystal) => {
       expect(stackingAtomRadius(crystal)).toBeCloseTo(expected, 8);
-      expect(stackingAtomRadius(crystal)).toBeCloseTo(atomRenderRadius(crystal, 'schematic'), 8);
+      expect(stackingAtomRadius(crystal)).toBeCloseTo(atomRenderRadius(crystal), 8);
     });
   });
 
@@ -460,7 +426,7 @@ describe('stacking models', () => {
   });
 
   it('keeps the FCC stacking model in the same orientation as its cell model', () => {
-    const cellAtoms = createAtoms('FCC', 1, false, 'cell');
+    const cellAtoms = createAtoms('FCC', 1, 'cell');
     const stackingAtoms = createStackingAtoms('FCC');
     const scale = stackingPositionScale('FCC');
     stackingAtoms.forEach((atom, index) => {
@@ -478,7 +444,7 @@ describe('stacking models', () => {
 
 describe('coordination shells', () => {
   it.each(['FCC', 'BCC', 'HCP'] as CrystalType[])('%s waits for a click before highlighting a coordination center', (crystal) => {
-    expect(createAtoms(crystal, 1, false, 'coordination').some((atom) => atom.highlight)).toBe(false);
+    expect(createAtoms(crystal, 1, 'coordination').some((atom) => atom.highlight)).toBe(false);
   });
 
   it('uses yellow for the selected center and red for nearest neighbors', () => {
@@ -500,7 +466,7 @@ describe('coordination shells', () => {
     ['BCC', 8],
     ['HCP', 12],
   ] as const)('%s retains a complete periodic nearest-neighbor shell', (crystal, count) => {
-    const atoms = createAtoms(crystal, 1, false, 'coordination');
+    const atoms = createAtoms(crystal, 1, 'coordination');
     const shell = coordinationShell(atoms, crystal, atoms[0].position);
     expect(shell?.nearest).toHaveLength(count);
     const distances = shell!.nearest.map((neighbor) => neighbor.distance);
@@ -572,7 +538,4 @@ describe('packing and camera presets', () => {
     expect(normalizedPosition('HCP').distanceTo(fcc)).toBeLessThan(1e-8);
   });
 
-  it('retains the half-cell section plane through the origin', () => {
-    expect(sectionClippingPlaneSpec()).toEqual({ normal: [1, 0, 0], constant: 0 });
-  });
 });

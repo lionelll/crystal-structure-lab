@@ -10,14 +10,9 @@ export type ModuleId =
   | 'tetra'
   | 'octa';
 
-export type ModelStyle = 'rigid' | 'schematic' | 'ball-stick';
-
 export interface DisplaySettings {
-  modelStyle: ModelStyle;
   showSupercell: boolean;
   autoRotate: boolean;
-  exploded: boolean;
-  sectionView: boolean;
 }
 
 export interface CrystalInfo {
@@ -127,9 +122,6 @@ export function resolveCrystal(value: string | null | undefined): CrystalInfo {
 }
 
 export const defaultSettings: DisplaySettings = {
-  modelStyle: 'schematic',
   showSupercell: false,
   autoRotate: true,
-  exploded: false,
-  sectionView: false,
 };

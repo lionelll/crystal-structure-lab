@@ -1,11 +1,6 @@
 export type CrystalType = 'FCC' | 'BCC' | 'HCP';
 export type PositionTuple = readonly [number, number, number];
 
-export interface ClippingPlaneSpec {
-  normal: PositionTuple;
-  constant: number;
-}
-
 const idealHcpRatio = Math.sqrt(8 / 3);
 
 export const latticeGeometry = {
@@ -107,8 +102,4 @@ export function hcpGapPositions(kind: 'tetra' | 'octa'): PositionTuple[] {
     ...aLayerRepresentatives.map(([x, y]): PositionTuple => [x, y, c / 8]),
     ...upperHoles.map(([x, y]): PositionTuple => [x, y, 3 * c / 8]),
   ];
-}
-
-export function sectionClippingPlaneSpec(): ClippingPlaneSpec {
-  return { normal: [1, 0, 0], constant: 0 };
 }

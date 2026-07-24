@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { crystals, resolveCrystal, type CrystalType, type DisplaySettings, type ModelStyle, type ModuleId } from '../data/crystals';
+import { crystals, resolveCrystal, type CrystalType, type DisplaySettings, type ModuleId } from '../data/crystals';
 import {
   hcpCellAtoms,
   hcpCellOffset,
@@ -9,8 +9,6 @@ import {
   hcpGeometry,
   hcpTranslation,
   latticeGeometry,
-  sectionClippingPlaneSpec,
-  type ClippingPlaneSpec,
 } from '../data/latticeGeometry';
 
 export interface CrystalCanvasHandle {
@@ -56,11 +54,6 @@ export interface RenderAtom {
   highlight?: boolean;
 }
 
-interface DynamicClippingPlane {
-  local: THREE.Plane;
-  world: THREE.Plane;
-}
-
 interface GapSelectionContext {
   layer: THREE.Group;
   crystal: CrystalType;
@@ -92,8 +85,6 @@ export const atomVisualStyle = {
   keyLightIntensity: 1.8,
   cubicSchematicRadiusOverA: 0.5 / 3.6,
   hcpSchematicRadiusOverA: ((0.5 / 3.6) * latticeGeometry.FCC.worldA) / latticeGeometry.HCP.worldA,
-  ballStickRadiusScale: 0.6,
-  bondRadius: 0.025,
 } as const;
 
 export const AUTO_ROTATE_RADIANS_PER_FRAME = 0.0015;
@@ -127,10 +118,7 @@ export function sceneStructureKey(crystal: CrystalType, activeModule: ModuleId, 
   return [
     crystal,
     activeModule,
-    settings.modelStyle,
     settings.showSupercell,
-    settings.exploded,
-    settings.sectionView,
   ].join('|');
 }
 
@@ -188,20 +176,16 @@ const cubicEdges: [number, number][] = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], 
 const hcpBottom = hcpGeometry.ring.map(([x, y]) => new THREE.Vector3(x, y, -hcpGeometry.c / 2));
 const hcpTop = hcpGeometry.ring.map(([x, y]) => new THREE.Vector3(x, y, hcpGeometry.c / 2));
 
-export function atomRenderRadius(crystal: CrystalType, modelStyle: ModelStyle) {
+export function atomRenderRadius(crystal: CrystalType) {
   const geometry = latticeGeometry[crystal];
   const radiusOverA = crystal === 'HCP'
     ? atomVisualStyle.hcpSchematicRadiusOverA
     : atomVisualStyle.cubicSchematicRadiusOverA;
-  if (modelStyle === 'rigid') return geometry.atomRadiusOverA * geometry.worldA;
-  const referenceRadius = radiusOverA * geometry.worldA;
-  return modelStyle === 'ball-stick'
-    ? referenceRadius * atomVisualStyle.ballStickRadiusScale
-    : referenceRadius;
+  return radiusOverA * geometry.worldA;
 }
 
 export function stackingAtomRadius(crystal: CrystalType) {
-  return atomRenderRadius(crystal, 'schematic');
+  return atomRenderRadius(crystal);
 }
 
 export function stackingPositionScale(crystal: CrystalType) {
@@ -222,8 +206,6 @@ interface AtomMaterialOptions {
   opacity?: number;
   emissive?: THREE.ColorRepresentation;
   emissiveIntensity?: number;
-  clippingPlanes?: THREE.Plane[];
-  side?: THREE.Side;
   fog?: boolean;
 }
 
@@ -237,8 +219,6 @@ function createAtomMaterial(color: THREE.ColorRepresentation, options: AtomMater
     emissiveIntensity: options.emissiveIntensity ?? 1,
     transparent: opacity < 1,
     opacity,
-    ...(options.clippingPlanes ? { clippingPlanes: options.clippingPlanes } : {}),
-    side: options.side ?? THREE.FrontSide,
     fog: options.fog ?? true,
   });
 }
@@ -258,7 +238,6 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   const [renderError, setRenderError] = useState<Error | null>(null);
   const coordAnimRef = useRef<{ objects: THREE.Object3D[]; startTime: number }>({ objects: [], startTime: 0 });
   const centerPulseRef = useRef<THREE.Mesh | null>(null);
-  const dynamicClippingRef = useRef<DynamicClippingPlane[]>([]);
   const coordinationFrameGroupRef = useRef<THREE.Group | null>(null);
   const gapSelectionContextRef = useRef<GapSelectionContext | null>(null);
   const coordinationSelectionContextRef = useRef<CoordinationSelectionContext | null>(null);
@@ -310,7 +289,6 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setClearColor(0x05070c, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.localClippingEnabled = true;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
     const handleContextLost = (event: Event) => {
@@ -385,12 +363,6 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       if (s.autoRotate && rootRef.current) {
         rootRef.current.rotation.z += AUTO_ROTATE_RADIANS_PER_FRAME;
       }
-      if (rootRef.current && dynamicClippingRef.current.length > 0) {
-        rootRef.current.updateMatrixWorld(true);
-        dynamicClippingRef.current.forEach(({ local, world }) => {
-          world.copy(local).applyMatrix4(rootRef.current!.matrixWorld);
-        });
-      }
       const anim = coordAnimRef.current;
       if (anim.objects.length > 0) {
         const elapsed = (performance.now() - anim.startTime) / 1000;
@@ -437,7 +409,6 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     if (!root) return;
     clearGroup(root);
     pickablesRef.current = [];
-    dynamicClippingRef.current = [];
     coordinationFrameGroupRef.current = null;
     gapSelectionContextRef.current = null;
     coordinationSelectionContextRef.current = null;
@@ -446,13 +417,9 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     const standaloneModule = activeModule === 'bravais' || activeModule === 'stacking';
     const atoms = standaloneModule
       ? []
-      : createAtoms(crystal, repeat, settings.exploded, activeModule);
-    const radius = atomRenderRadius(crystal, settings.modelStyle);
+      : createAtoms(crystal, repeat, activeModule);
+    const radius = atomRenderRadius(crystal);
     const renderedAtomKeys = new Set(atoms.map((atom) => positionKey(atom.position)));
-    const sectionSpec = settings.sectionView ? sectionClippingPlaneSpec() : null;
-    const sectionPlanes = sectionSpec
-      ? createDynamicClippingPlanes(root, [sectionSpec], dynamicClippingRef.current)
-      : [];
     const frameRepeat = cellFrameRepeat(crystal, activeModule, Boolean(coordinationTarget), settings.showSupercell);
     const frameGroup = new THREE.Group();
     if (activeModule !== 'stacking') addCellFrames(frameGroup, crystal, frameRepeat, activeModule === 'bravais');
@@ -465,9 +432,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     if (activeModule === 'stacking') {
       addStackingModel(root, crystal);
     } else if (activeModule === 'bravais') {
-      addBravaisSites(root, createBravaisSites(crystal, repeat), sectionPlanes);
+      addBravaisSites(root, createBravaisSites(crystal, repeat));
     } else {
-      if (settings.modelStyle === 'ball-stick') addBonds(root, atoms, crystal, sectionPlanes);
       const atomMeshes = activeModule === 'coordination' ? new Map<string, THREE.Mesh>() : undefined;
       addAtoms(
         root,
@@ -476,7 +442,6 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         atomOpacityForModule(activeModule),
         activeModule,
         pickablesRef.current,
-        sectionPlanes,
         atomMeshes,
       );
       if (activeModule === 'coordination' && atomMeshes) {
@@ -530,7 +495,6 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         renderedAtomKeys,
       );
     }
-    if (settings.sectionView) addSectionPlane(root, crystal);
   }, [structureKey]);
 
   useEffect(() => {
@@ -636,18 +600,8 @@ function clearGroup(group: THREE.Group) {
   }
 }
 
-function createDynamicClippingPlanes(group: THREE.Group, specs: ClippingPlaneSpec[], registry: DynamicClippingPlane[]) {
-  group.updateMatrixWorld(true);
-  return specs.map(({ normal, constant }) => {
-    const local = new THREE.Plane(new THREE.Vector3(...normal), constant);
-    const world = local.clone().applyMatrix4(group.matrixWorld);
-    registry.push({ local, world });
-    return world;
-  });
-}
-
-export function createAtoms(crystal: CrystalType, repeat: number, exploded: boolean, moduleId: ModuleId): RenderAtom[] {
-  if (crystal === 'HCP') return createHcpAtoms(repeat, exploded, moduleId);
+export function createAtoms(crystal: CrystalType, repeat: number, moduleId: ModuleId): RenderAtom[] {
+  if (crystal === 'HCP') return createHcpAtoms(repeat, moduleId);
   const base = crystal === 'FCC'
     ? [...cornerPositions.map((p) => ({ p, kind: 'base' as const })), ...fccFacePositions.map((p) => ({ p, kind: 'face' as const }))]
     : [...cornerPositions.map((p) => ({ p, kind: 'base' as const })), ...bccCenterPositions.map((p) => ({ p, kind: 'center' as const }))];
@@ -657,7 +611,6 @@ export function createAtoms(crystal: CrystalType, repeat: number, exploded: bool
       for (let iz = 0; iz < repeat; iz++) {
         for (const atom of base) {
           const position = cubicPoint([atom.p[0] + ix, atom.p[1] + iy, atom.p[2] + iz], repeat);
-          if (exploded) position.add(position.clone().normalize().multiplyScalar(0.42));
           atoms.push({ position, kind: atom.kind });
         }
       }
@@ -666,7 +619,7 @@ export function createAtoms(crystal: CrystalType, repeat: number, exploded: bool
   return finalizeAtoms(atoms, moduleId);
 }
 
-function createHcpAtoms(repeat: number, exploded: boolean, moduleId: ModuleId): RenderAtom[] {
+function createHcpAtoms(repeat: number, moduleId: ModuleId): RenderAtom[] {
   const atoms: RenderAtom[] = [];
   const local = hcpCellAtoms(true);
   for (let ix = 0; ix < repeat; ix++) {
@@ -675,7 +628,6 @@ function createHcpAtoms(repeat: number, exploded: boolean, moduleId: ModuleId): 
         const offset = new THREE.Vector3(...hcpCellOffset(ix, iy, iz, repeat));
         local.forEach((site) => {
           const position = new THREE.Vector3(...site.position).add(offset);
-          if (exploded) position.add(position.clone().normalize().multiplyScalar(0.36));
           atoms.push({ position, kind: site.kind });
         });
       }
@@ -740,7 +692,7 @@ function stackingLayerCoordinate(crystal: CrystalType, position: THREE.Vector3) 
 }
 
 export function createStackingAtoms(crystal: CrystalType): StackingAtom[] {
-  const cellAtoms = createAtoms(crystal, 1, false, 'cell');
+  const cellAtoms = createAtoms(crystal, 1, 'cell');
   const layerLevels = [...new Set(cellAtoms.map(({ position }) => stackingLayerCoordinate(crystal, position).toFixed(6)))]
     .map(Number)
     .sort((a, b) => a - b);
@@ -776,7 +728,7 @@ function cubicPoint(point: Vec3Tuple, repeat: number) {
   return new THREE.Vector3((point[0] - repeat / 2) * cellScale, (point[1] - repeat / 2) * cellScale, (point[2] - repeat / 2) * cellScale);
 }
 
-function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, moduleId: ModuleId, pickables?: THREE.Object3D[], clippingPlanes: THREE.Plane[] = [], atomMeshes?: Map<string, THREE.Mesh>) {
+function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opacity: number, moduleId: ModuleId, pickables?: THREE.Object3D[], atomMeshes?: Map<string, THREE.Mesh>) {
   const sphere = new THREE.SphereGeometry(radius, 32, 32);
   atoms.forEach((atom) => {
     let color = atom.kind === 'face' ? faceColor : atomColor;
@@ -786,8 +738,6 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
       emissive: atom.highlight ? '#665900' : atomVisualStyle.bodyLiftColor,
       emissiveIntensity: atom.highlight ? 0.9 : atomVisualStyle.bodyLiftIntensity,
       opacity,
-      clippingPlanes,
-      side: clippingPlanes.length > 0 ? THREE.DoubleSide : THREE.FrontSide,
       fog: moduleId !== 'coordination',
     });
     const mesh = new THREE.Mesh(sphere, material);
@@ -802,7 +752,7 @@ function addAtoms(group: THREE.Group, atoms: RenderAtom[], radius: number, opaci
     group.add(mesh);
 
     if (atom.highlight) {
-      const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.18, 32, 16), new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.18, clippingPlanes, fog: false }));
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.18, 32, 16), new THREE.MeshBasicMaterial({ color: '#fff65c', transparent: true, opacity: 0.18, fog: false }));
       halo.position.copy(atom.position);
       group.add(halo);
     }
@@ -839,34 +789,7 @@ export function applyCoordinationAtomVisuals(
   }
 }
 
-export function nearestNeighborBondPairs(atoms: RenderAtom[], crystal: CrystalType) {
-  const geometry = latticeGeometry[crystal];
-  const expected = 2 * geometry.atomRadiusOverA * geometry.worldA;
-  const tolerance = expected * 0.025;
-  const pairs: Array<[number, number]> = [];
-  for (let i = 0; i < atoms.length; i++) {
-    for (let j = i + 1; j < atoms.length; j++) {
-      const distance = atoms[i].position.distanceTo(atoms[j].position);
-      if (Math.abs(distance - expected) <= tolerance) pairs.push([i, j]);
-    }
-  }
-  return pairs;
-}
-
-function addBonds(group: THREE.Group, atoms: RenderAtom[], crystal: CrystalType, clippingPlanes: THREE.Plane[] = []) {
-  const material = new THREE.MeshPhysicalMaterial({ color: '#c8d8ee', transparent: true, opacity: 0.55, roughness: 0.5, metalness: 0.1, clippingPlanes });
-  nearestNeighborBondPairs(atoms, crystal).forEach(([i, j]) => {
-        const distance = atoms[i].position.distanceTo(atoms[j].position);
-        const dir = atoms[j].position.clone().sub(atoms[i].position);
-        const mid = atoms[i].position.clone().add(atoms[j].position).multiplyScalar(0.5);
-        const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(atomVisualStyle.bondRadius, atomVisualStyle.bondRadius, distance, 8, 1), material);
-        cylinder.position.copy(mid);
-        cylinder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-        group.add(cylinder);
-  });
-}
-
-function addBravaisSites(group: THREE.Group, sites: RenderAtom[], clippingPlanes: THREE.Plane[]) {
+function addBravaisSites(group: THREE.Group, sites: RenderAtom[]) {
   const geometry = new THREE.BufferGeometry().setFromPoints(sites.map(({ position }) => position));
   const material = new THREE.PointsMaterial({
     color: bravaisPointStyle.color,
@@ -877,7 +800,6 @@ function addBravaisSites(group: THREE.Group, sites: RenderAtom[], clippingPlanes
     map: createRoundPointTexture(),
     alphaTest: 0.2,
     depthWrite: false,
-    clippingPlanes,
   });
   group.add(new THREE.Points(geometry, material));
 }
@@ -1234,7 +1156,7 @@ export function renderGapSelectionLayer(
   renderedAtoms: RenderAtom[],
   selectedIndex = 0,
   repeat = 1,
-  atomRadius = atomRenderRadius(crystal, 'schematic'),
+  atomRadius = atomRenderRadius(crystal),
   renderedAtomKeys = new Set(renderedAtoms.map((atom) => positionKey(atom.position))),
 ) {
   clearGroup(layer);
@@ -1287,7 +1209,7 @@ export function findSurroundingAtoms(
   crystal: CrystalType,
   gapPos: THREE.Vector3,
   kind: 'tetra' | 'octa',
-  renderedAtoms = createAtoms(crystal, 1, false, kind),
+  renderedAtoms = createAtoms(crystal, 1, kind),
   repeat = 1,
 ): THREE.Vector3[] {
   const count = kind === 'tetra' ? 4 : 6;
@@ -1310,15 +1232,6 @@ export function findSurroundingAtoms(
     .sort((a, b) => a.distance - b.distance)
     .slice(0, count)
     .map(({ position }) => position);
-}
-
-function addSectionPlane(group: THREE.Group, crystal: CrystalType) {
-  const geometry = crystal === 'HCP'
-    ? new THREE.PlaneGeometry(hcpGeometry.c * 1.2, hcpGeometry.a * 2.15)
-    : new THREE.PlaneGeometry(cellScale * 1.15, cellScale * 1.15);
-  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: '#8ceaff', transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false }));
-  mesh.rotation.y = Math.PI / 2;
-  group.add(mesh);
 }
 
 function addAxes(group: THREE.Group, crystal: CrystalType) {
