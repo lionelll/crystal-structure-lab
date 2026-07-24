@@ -5,7 +5,9 @@ export type IonicCrystalId =
   | 'zns-hex'
   | 'caf2'
   | 'catio3'
-  | 'tio2-rutile';
+  | 'tio2-rutile'
+  | 'sio2-beta-cristobalite'
+  | 'mgal2o4';
 
 export type IonicModuleId = 'cell' | 'bravais' | 'coordination' | 'ion-sites';
 export type CrystalFamily = 'metal' | 'ionic';
@@ -108,6 +110,24 @@ const ca = species('ca', 'Ca²⁺', 2, '#7dd3fc', 0.3, 8);
 const fluorine = species('f', 'F⁻', -1, '#34d399', 0.33, 4);
 const ti = species('ti', 'Ti⁴⁺', 4, '#c084fc', 0.28, 6);
 const oxygen = species('o', 'O²⁻', -2, '#fb7185', 0.33, 2);
+const silicon = species('si', 'Si⁴⁺', 4, '#fb923c', 0.28, 4);
+const magnesium = species('mg', 'Mg²⁺', 2, '#4ade80', 0.3, 4);
+const aluminium = species('al', 'Al³⁺', 3, '#60a5fa', 0.28, 6);
+
+const spinelOxygenParameter = 0.2625;
+const spinelOxygenBasis: IonicSite[] = [
+  [spinelOxygenParameter, spinelOxygenParameter, spinelOxygenParameter],
+  [0.25 - spinelOxygenParameter, 0.25 - spinelOxygenParameter, spinelOxygenParameter],
+  [0.25 - spinelOxygenParameter, spinelOxygenParameter, 0.25 - spinelOxygenParameter],
+  [spinelOxygenParameter, 0.25 - spinelOxygenParameter, 0.25 - spinelOxygenParameter],
+  [spinelOxygenParameter + 0.25, spinelOxygenParameter + 0.25, -spinelOxygenParameter],
+  [-spinelOxygenParameter, -spinelOxygenParameter, -spinelOxygenParameter],
+  [spinelOxygenParameter + 0.25, -spinelOxygenParameter, spinelOxygenParameter + 0.25],
+  [-spinelOxygenParameter, spinelOxygenParameter + 0.25, spinelOxygenParameter + 0.25],
+].map((fractional) => ({
+  speciesId: 'o',
+  fractional: fractional.map(mod1) as IonicVec3,
+}));
 
 export const ionicModules: IonicModuleItem[] = [
   { id: 'cell', title: '晶胞模型', summary: '用不同颜色区分离子并显示完整晶胞。' },
@@ -124,6 +144,8 @@ export const ionicCrystalOrder: IonicCrystalId[] = [
   'caf2',
   'catio3',
   'tio2-rutile',
+  'sio2-beta-cristobalite',
+  'mgal2o4',
 ];
 
 export const ionicCrystals: Record<IonicCrystalId, IonicCrystalInfo> = {
@@ -283,6 +305,59 @@ export const ionicCrystals: Record<IonicCrystalId, IonicCrystalInfo> = {
     basis: 'Ti⁴⁺(0,0,0)、Ti⁴⁺(1/2,1/2,1/2) + 4个O²⁻(u≈0.305)',
     basisIons: [{ speciesId: 'ti', count: 2 }, { speciesId: 'o', count: 4 }],
     teaching: 'TiO₂ 金红石型又称 C4 型结构，属于简单四方点阵。Ti⁴⁺位于顶角和体心等效位置，O²⁻占据由内部参数 u≈0.305 决定的 4f 位点。',
+  },
+  'sio2-beta-cristobalite': {
+    id: 'sio2-beta-cristobalite',
+    title: 'SiO₂(β-方石英)型结构',
+    shortLabel: 'SiO₂(β-方石英)',
+    structureType: 'β-方石英型',
+    latticeType: '面心立方点阵',
+    lattice: cubic(),
+    latticePoints: fCentering,
+    species: [silicon, oxygen],
+    sites: applyCentering([
+      { speciesId: 'si', fractional: [0.125, 0.125, 0.125] },
+      { speciesId: 'si', fractional: [0.875, 0.875, 0.875] },
+      { speciesId: 'o', fractional: [0, 0, 0] },
+      { speciesId: 'o', fractional: [0.25, 0.25, 0] },
+      { speciesId: 'o', fractional: [0.25, 0, 0.25] },
+      { speciesId: 'o', fractional: [0, 0.25, 0.25] },
+    ], fCentering),
+    ionPositions: 'Si⁴⁺：四面体中心；O²⁻：相邻SiO₄四面体桥位',
+    ionCounts: 'Si⁴⁺：8；O²⁻：16',
+    coordinationText: 'Si⁴⁺：4；O²⁻：2',
+    basis: '2个Si⁴⁺位点 + 4个桥联O²⁻位点，随面心平移重复',
+    basisIons: [{ speciesId: 'si', count: 2 }, { speciesId: 'o', count: 4 }],
+    teaching: 'β-方石英又称高温方石英。Si⁴⁺位于 4 个 O²⁻构成的 [SiO₄] 四面体中心，每个 O²⁻桥联 2 个 Si⁴⁺，四面体通过共顶点形成具有开放空隙的三维骨架。本模型采用理想平均位置展示四面体网络及 4:2 配位关系。',
+  },
+  mgal2o4: {
+    id: 'mgal2o4',
+    title: 'MgAl₂O₄型结构',
+    shortLabel: 'MgAl₂O₄',
+    structureType: '正常尖晶石型',
+    latticeType: '面心立方点阵',
+    lattice: cubic(),
+    latticePoints: fCentering,
+    species: [magnesium, aluminium, { ...oxygen, coordination: 4 }],
+    sites: applyCentering([
+      { speciesId: 'mg', fractional: [0.375, 0.375, 0.375] },
+      { speciesId: 'mg', fractional: [0.625, 0.625, 0.625] },
+      { speciesId: 'al', fractional: [0, 0, 0] },
+      { speciesId: 'al', fractional: [0.25, 0.25, 0] },
+      { speciesId: 'al', fractional: [0.25, 0, 0.25] },
+      { speciesId: 'al', fractional: [0, 0.25, 0.25] },
+      ...spinelOxygenBasis,
+    ], fCentering),
+    ionPositions: 'Mg²⁺：1/8四面体空隙；Al³⁺：1/2八面体空隙；O²⁻：32e位',
+    ionCounts: 'Mg²⁺：8；Al³⁺：16；O²⁻：32',
+    coordinationText: 'Mg²⁺：4；Al³⁺：6；O²⁻：4（1Mg+3Al）',
+    basis: '2个Mg²⁺ + 4个Al³⁺ + 8个O²⁻位点，随面心平移重复',
+    basisIons: [
+      { speciesId: 'mg', count: 2 },
+      { speciesId: 'al', count: 4 },
+      { speciesId: 'o', count: 8 },
+    ],
+    teaching: 'MgAl₂O₄ 是正常尖晶石结构。O²⁻近似构成立方密堆积，Mg²⁺占据全部四面体空隙的 1/8，形成 [MgO₄] 四面体；Al³⁺占据全部八面体空隙的 1/2，形成 [AlO₆] 八面体。每个 O²⁻邻接 1 个 Mg²⁺和 3 个 Al³⁺，共同组成三维骨架。',
   },
 };
 

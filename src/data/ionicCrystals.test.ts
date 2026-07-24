@@ -14,14 +14,19 @@ import {
   type IonicCrystalId,
 } from './ionicCrystals';
 import {
+  applyDefaultIonicIonVisual,
+  applyIonicIonSiteVisual,
   centeredIonicPosition,
   createIonicBravaisPoints,
+  createIonicIonMaterial,
   createIonicVisualSites,
   createWurtziteHexPrismFrameSegments,
   createWurtziteHexPrismVisualSites,
   ionicAtomRadius,
   ionicCameraPreset,
   ionicIonSiteVisualState,
+  nextIonicSpeciesSelection,
+  ION_SITE_MUTED_COLOR_FACTOR,
   ION_SITE_MUTED_OPACITY,
   WURTZITE_CAMERA_DIRECTION,
 } from '../components/IonicCrystalCanvas';
@@ -34,6 +39,8 @@ const expectedCounts: Record<IonicCrystalId, Record<string, number>> = {
   caf2: { ca: 4, f: 8 },
   catio3: { ca: 1, ti: 1, o: 3 },
   'tio2-rutile': { ti: 2, o: 4 },
+  'sio2-beta-cristobalite': { si: 8, o: 16 },
+  mgal2o4: { mg: 8, al: 16, o: 32 },
 };
 
 describe('ionic crystal catalog', () => {
@@ -46,6 +53,8 @@ describe('ionic crystal catalog', () => {
       'CaF₂型结构',
       'CaTiO₃型结构',
       'TiO₂(金红石)型结构',
+      'SiO₂(β-方石英)型结构',
+      'MgAl₂O₄型结构',
     ]);
   });
 
@@ -61,8 +70,8 @@ describe('ionic crystal catalog', () => {
     expect(isIonicCrystalId('nacl')).toBe(true);
     expect(isIonicCrystalId('')).toBe(false);
     expect(isIonicCrystalId('unknown')).toBe(false);
-    expect(isIonicCrystalId('sio2-beta-cristobalite')).toBe(false);
-    expect(isIonicCrystalId('mgal2o4')).toBe(false);
+    expect(isIonicCrystalId('sio2-beta-cristobalite')).toBe(true);
+    expect(isIonicCrystalId('mgal2o4')).toBe(true);
     expect(resolveIonicCrystal('')).toBe(ionicCrystals.cscl);
     expect(resolveIonicCrystal('unknown')).toBe(ionicCrystals.cscl);
     expect(resolveIonicCrystal(undefined)).toBe(ionicCrystals.cscl);
@@ -158,16 +167,104 @@ describe('ionic lattice geometry', () => {
   });
 
   it('uses one shared muted opacity for every ion-site selection', () => {
-    expect(ION_SITE_MUTED_OPACITY).toBe(0.14);
+    expect(ION_SITE_MUTED_OPACITY).toBe(0.16);
+    expect(ION_SITE_MUTED_COLOR_FACTOR).toBe(0.35);
     ionicCrystalOrder.forEach(() => {
       expect(ionicIonSiteVisualState(false)).toEqual({
         transparent: true,
-        opacity: 0.14,
+        opacity: 0.16,
         depthWrite: true,
+        depthTest: true,
         emissiveIntensity: 0,
-        scale: 0.96,
+        colorFactor: 0.35,
+        renderOrder: 1,
+        scale: 1,
       });
     });
+  });
+
+  it('keeps repeated ion-site clicks selected instead of toggling the filter off', () => {
+    expect(nextIonicSpeciesSelection(null, 'zn')).toBe('zn');
+    expect(nextIonicSpeciesSelection('zn', 'zn')).toBe('zn');
+    expect(nextIonicSpeciesSelection('zn', 's')).toBe('s');
+  });
+
+  it.each(ionicCrystalOrder)('%s applies the same ion-site material states to every species', (id) => {
+    const crystal = ionicCrystals[id];
+    crystal.species.forEach((selectedIon) => {
+      crystal.species.forEach((ion) => {
+        const material = new THREE.MeshPhongMaterial({ color: ion.color, emissive: ion.color });
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2), material);
+        const initialVersion = material.version;
+        const selected = ion.id === selectedIon.id;
+
+        applyIonicIonSiteVisual(mesh, ion.color, selected);
+
+        expect(material.opacity).toBe(selected ? 1 : ION_SITE_MUTED_OPACITY);
+        expect(material.transparent).toBe(!selected);
+        expect(material.depthWrite).toBe(true);
+        expect(material.depthTest).toBe(true);
+        expect(material.emissiveIntensity).toBe(selected ? 0.22 : 0);
+        expect(mesh.renderOrder).toBe(selected ? 2 : 1);
+        expect(mesh.scale.x).toBe(1);
+        const originalColor = new THREE.Color(ion.color);
+        expect(material.color.r).toBeCloseTo(originalColor.r * (selected ? 1 : ION_SITE_MUTED_COLOR_FACTOR));
+        expect(material.color.g).toBeCloseTo(originalColor.g * (selected ? 1 : ION_SITE_MUTED_COLOR_FACTOR));
+        expect(material.color.b).toBeCloseTo(originalColor.b * (selected ? 1 : ION_SITE_MUTED_COLOR_FACTOR));
+        if (!selected) expect(material.version).toBeGreaterThan(initialVersion);
+
+        mesh.geometry.dispose();
+        material.dispose();
+      });
+    });
+  });
+
+  it('refreshes the material pipeline when a species changes between selected and muted', () => {
+    const material = new THREE.MeshPhongMaterial({ color: '#38bdf8', emissive: '#38bdf8' });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2), material);
+
+    applyIonicIonSiteVisual(mesh, '#38bdf8', false);
+    const mutedVersion = material.version;
+    applyIonicIonSiteVisual(mesh, '#38bdf8', true);
+
+    expect(material.version).toBeGreaterThan(mutedVersion);
+    expect(material.transparent).toBe(false);
+    expect(material.opacity).toBe(1);
+    expect(material.color.getHexString()).toBe(new THREE.Color('#38bdf8').getHexString());
+
+    mesh.geometry.dispose();
+    material.dispose();
+  });
+
+  it('creates an independent material instance for every ion mesh', () => {
+    const first = createIonicIonMaterial('#38bdf8');
+    const second = createIonicIonMaterial('#38bdf8');
+
+    expect(first).not.toBe(second);
+    first.transparent = true;
+    first.opacity = 0.16;
+    expect(second.transparent).toBe(false);
+    expect(second.opacity).toBe(1);
+
+    first.dispose();
+    second.dispose();
+  });
+
+  it('restores an ion material without leaving the transparent render path active', () => {
+    const material = createIonicIonMaterial('#38bdf8');
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2), material);
+    applyIonicIonSiteVisual(mesh, '#38bdf8', false);
+    const mutedVersion = material.version;
+
+    applyDefaultIonicIonVisual(mesh, '#38bdf8');
+
+    expect(material.transparent).toBe(false);
+    expect(material.opacity).toBe(1);
+    expect(material.depthWrite).toBe(true);
+    expect(material.version).toBeGreaterThan(mutedVersion);
+
+    mesh.geometry.dispose();
+    material.dispose();
   });
 
   it('uses the measured wurtzite ratio and ideal internal parameter with tetrahedral neighbors', () => {

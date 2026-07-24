@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CrystalCanvasHandle } from './CrystalCanvas';
@@ -48,7 +48,8 @@ const vectorKey = (value: IonicVec3) => value.map((coordinate) => coordinate.toF
 const siteKey = (siteIndex: number, fractional: IonicVec3) => `${siteIndex}|${vectorKey(fractional)}`;
 export const IONIC_CAMERA_DIRECTION: IonicVec3 = [0.82, -0.4, 0.42];
 export const WURTZITE_CAMERA_DIRECTION: IonicVec3 = [0.74, 0.43, 0.52];
-export const ION_SITE_MUTED_OPACITY = 0.14;
+export const ION_SITE_MUTED_OPACITY = 0.16;
+export const ION_SITE_MUTED_COLOR_FACTOR = 0.35;
 const IONIC_BODY_LIFT_INTENSITY = 0.14;
 const WURTZITE_PRISM_ORIGIN: IonicVec3 = [2 / 3, 1 / 3, 3 / 8];
 
@@ -57,9 +58,58 @@ export function ionicIonSiteVisualState(selected: boolean) {
     transparent: !selected,
     opacity: selected ? 1 : ION_SITE_MUTED_OPACITY,
     depthWrite: true,
+    depthTest: true,
     emissiveIntensity: selected ? 0.22 : 0,
-    scale: selected ? 1.08 : 0.96,
+    colorFactor: selected ? 1 : ION_SITE_MUTED_COLOR_FACTOR,
+    renderOrder: selected ? 2 : 1,
+    scale: 1,
   };
+}
+
+export function nextIonicSpeciesSelection(_current: string | null, speciesId: string) {
+  return speciesId;
+}
+
+export function applyIonicIonSiteVisual(
+  mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>,
+  ionColor: THREE.ColorRepresentation,
+  selected: boolean,
+) {
+  const state = ionicIonSiteVisualState(selected);
+  const material = mesh.material;
+  const transparentChanged = material.transparent !== state.transparent;
+
+  material.color.set(ionColor).multiplyScalar(state.colorFactor);
+  material.emissive.set(selected ? ionColor : '#000000');
+  material.emissiveIntensity = state.emissiveIntensity;
+  material.transparent = state.transparent;
+  material.opacity = state.opacity;
+  material.depthWrite = state.depthWrite;
+  material.depthTest = state.depthTest;
+  mesh.renderOrder = state.renderOrder;
+  mesh.scale.setScalar(state.scale);
+
+  if (transparentChanged) material.needsUpdate = true;
+}
+
+export function applyDefaultIonicIonVisual(
+  mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>,
+  ionColor: THREE.ColorRepresentation,
+) {
+  const material = mesh.material;
+  const transparentChanged = material.transparent;
+
+  material.color.set(ionColor);
+  material.emissive.set(ionColor);
+  material.emissiveIntensity = IONIC_BODY_LIFT_INTENSITY;
+  material.opacity = 1;
+  material.transparent = false;
+  material.depthWrite = true;
+  material.depthTest = true;
+  mesh.renderOrder = 0;
+  mesh.scale.setScalar(1);
+
+  if (transparentChanged) material.needsUpdate = true;
 }
 
 export function centeredIonicPosition(crystal: IonicCrystalInfo, fractional: IonicVec3, repeat: number) {
@@ -259,14 +309,33 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
   const selectionContextRef = useRef<SelectionContext | null>(null);
   const [coordinationCenter, setCoordinationCenter] = useState<IonicCoordinationCenter | null>(null);
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
+  const coordinationCenterRef = useRef<IonicCoordinationCenter | null>(null);
+  const selectedSpeciesRef = useRef<string | null>(null);
+  const selectSpeciesRef = useRef<(speciesId: string) => void>(() => {});
   const [renderError, setRenderError] = useState<Error | null>(null);
   const crystal = resolveIonicCrystal(crystalId);
   const repeat = settings.showSupercell ? 2 : 1;
   const structureKey = `${crystalId}|${activeModule}|${repeat}`;
 
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
-  useEffect(() => { moduleRef.current = activeModule; }, [activeModule]);
-  useEffect(() => {
+  settingsRef.current = settings;
+  moduleRef.current = activeModule;
+  coordinationCenterRef.current = coordinationCenter;
+  selectedSpeciesRef.current = selectedSpecies;
+
+  const selectSpecies = (speciesId: string) => {
+    const nextSpecies = nextIonicSpeciesSelection(selectedSpeciesRef.current, speciesId);
+    selectedSpeciesRef.current = nextSpecies;
+    setSelectedSpecies(nextSpecies);
+    const context = selectionContextRef.current;
+    if (context?.module === 'ion-sites') {
+      updateSelection(context, coordinationCenterRef.current, nextSpecies);
+    }
+  };
+  selectSpeciesRef.current = selectSpecies;
+
+  useLayoutEffect(() => {
+    coordinationCenterRef.current = null;
+    selectedSpeciesRef.current = null;
     setCoordinationCenter(null);
     setSelectedSpecies(null);
   }, [activeModule, crystalId]);
@@ -352,7 +421,7 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
       const fractional = hit.userData.fractional as IonicVec3;
       const speciesId = String(hit.userData.speciesId);
       if (moduleRef.current === 'coordination') setCoordinationCenter({ siteIndex, fractional: [...fractional] });
-      else setSelectedSpecies((current) => current === speciesId ? null : speciesId);
+      else selectSpeciesRef.current(speciesId);
     };
     renderer.domElement.addEventListener('pointerdown', handlePointerDown);
 
@@ -406,7 +475,7 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
         if (!ion) return;
         const mesh = new THREE.Mesh(
           new THREE.SphereGeometry(ionicAtomRadius(crystal, ion.radius), 28, 20),
-          createIonMaterial(ion.color),
+          createIonicIonMaterial(ion.color),
         );
         mesh.position.copy(site.position);
         mesh.userData = {
@@ -435,7 +504,11 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
     addIonicAxes(root, crystal, repeat);
     setIonicCamera(camera, controls, crystal, repeat);
     root.rotation.set(0, 0, 0);
-    updateSelection(selectionContextRef.current, coordinationCenter, selectedSpecies);
+    updateSelection(
+      selectionContextRef.current,
+      coordinationCenterRef.current,
+      selectedSpeciesRef.current,
+    );
   }, [structureKey]);
 
   useEffect(() => {
@@ -457,7 +530,7 @@ export const IonicCrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(functio
             type="button"
             key={item.id}
             className={selectedSpecies === item.id ? 'active' : ''}
-            onClick={() => activeModule === 'ion-sites' && setSelectedSpecies((current) => current === item.id ? null : item.id)}
+            onClick={() => activeModule === 'ion-sites' && selectSpecies(item.id)}
             disabled={activeModule !== 'ion-sites'}
           >
             <span style={{ background: item.color }} />{item.label}
@@ -520,31 +593,19 @@ function updateSelection(
   selectedSpecies: string | null,
 ) {
   const speciesById = ionicSpeciesMap(context.crystal);
-  context.entries.forEach((entry) => {
-    const ion = speciesById.get(entry.speciesId)!;
-    entry.mesh.material.color.set(ion.color);
-    entry.mesh.material.emissive.set(ion.color);
-    entry.mesh.material.emissiveIntensity = IONIC_BODY_LIFT_INTENSITY;
-    entry.mesh.material.opacity = 1;
-    entry.mesh.material.transparent = false;
-    entry.mesh.material.depthWrite = true;
-    entry.mesh.scale.setScalar(1);
-  });
   clearGroup(context.layer);
 
   if (context.module === 'ion-sites' && selectedSpecies) {
     context.entries.forEach((entry) => {
       const selected = entry.speciesId === selectedSpecies;
-      const state = ionicIonSiteVisualState(selected);
-      entry.mesh.material.transparent = state.transparent;
-      entry.mesh.material.opacity = state.opacity;
-      entry.mesh.material.depthWrite = state.depthWrite;
-      entry.mesh.material.emissive.set(selected ? speciesById.get(entry.speciesId)!.color : '#000000');
-      entry.mesh.material.emissiveIntensity = state.emissiveIntensity;
-      entry.mesh.scale.setScalar(state.scale);
+      applyIonicIonSiteVisual(entry.mesh, speciesById.get(entry.speciesId)!.color, selected);
     });
     return;
   }
+
+  context.entries.forEach((entry) => {
+    applyDefaultIonicIonVisual(entry.mesh, speciesById.get(entry.speciesId)!.color);
+  });
 
   if (context.module !== 'coordination' || !coordinationCenter) return;
   const neighbors = ionicCoordinationShell(context.crystal, coordinationCenter);
@@ -555,8 +616,11 @@ function updateSelection(
     const key = siteKey(entry.siteIndex, entry.fractional);
     const isCenter = key === centerKey;
     const isNeighbor = neighborKeys.has(key);
-    entry.mesh.material.transparent = !isCenter && !isNeighbor;
+    const transparent = !isCenter && !isNeighbor;
+    const transparentChanged = entry.mesh.material.transparent !== transparent;
+    entry.mesh.material.transparent = transparent;
     entry.mesh.material.opacity = isCenter || isNeighbor ? 1 : 0.22;
+    if (transparentChanged) entry.mesh.material.needsUpdate = true;
     if (isCenter) {
       entry.mesh.material.color.set('#fff35a');
       entry.mesh.material.emissive.set('#7c6f00');
@@ -577,7 +641,7 @@ function updateSelection(
       const ion = speciesById.get(neighbor.speciesId)!;
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(ionicAtomRadius(context.crystal, ion.radius), 28, 20),
-        createIonMaterial('#ff4f57', '#5d090d', 0.28),
+        createIonicIonMaterial('#ff4f57', '#5d090d', 0.28),
       );
       sphere.position.copy(neighborPosition);
       context.layer.add(sphere);
@@ -585,7 +649,7 @@ function updateSelection(
   });
 }
 
-function createIonMaterial(
+export function createIonicIonMaterial(
   color: THREE.ColorRepresentation,
   emissive: THREE.ColorRepresentation = color,
   emissiveIntensity = IONIC_BODY_LIFT_INTENSITY,
