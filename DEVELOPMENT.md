@@ -61,6 +61,24 @@ Feature 分支只负责开发和本地验证，不允许在该分支创建正式
 
 ## 4. 测试环境规则
 
+- 测试环境与正式环境必须按下表核对，禁止仅凭服务器名称、历史命令或记忆选择部署目标：
+
+  | 项目 | 测试环境 | 正式环境 |
+  |---|---|---|
+  | 代码来源 | `dev` | `release` 上明确确认的 Tag |
+  | 部署方式 | GitHub Actions 自动部署 | 产品所有者明确授权后手动部署 |
+  | 公网 IP | `123.57.11.145` | `123.57.56.114` |
+  | 访问地址 | `http://123.57.11.145:8080/` | `https://crystal.changyanedu.cn/` |
+  | 站点目录 | `/var/www/crystal-dev` | `/data/wwwroot/crystal.changyanedu.cn` |
+  | 版本目录 | 测试环境工作流管理的独立版本目录 | `/data/wwwroot/crystal.changyanedu.cn/releases/<tag>-<sha>` |
+  | 当前版本入口 | 测试环境工作流管理的 `current` 软链接 | `/data/wwwroot/crystal.changyanedu.cn/current` |
+  | Nginx 配置 | 测试服务器独立配置 | `/usr/local/nginx/conf/vhost/crystal.changyanedu.cn.conf` |
+  | `release.json` 标识 | `"environment": "test"` | `"environment": "production"` |
+
+- 部署前必须同时核对目标 IP、代码来源、版本号、提交 SHA、目标目录和 `release.json.environment`，任一项不匹配立即停止。
+- 禁止将 `dev`、未打 Tag 的 `release` 或本地临时构建部署到正式服务器。
+- 禁止将正式 Tag 部署到测试目录，禁止在两个服务器之间复用站点目录、软链接或 Nginx 配置。
+- 服务器密码、私钥、Token 和其他凭据必须保存在仓库之外，本表只记录非敏感的环境标识。
 - 测试环境用于验证 `dev`，不得使用正式域名或覆盖正式目录。
 - 当前测试地址为 `http://123.57.11.145:8080/`，独立目录为 `/var/www/crystal-dev`。
 - `.github/workflows/deploy-dev.yml` 是唯一测试自动部署入口，只允许 `refs/heads/dev` 触发。
@@ -107,13 +125,14 @@ git push origin release
 ## 7. 正式环境部署
 
 - `release` 对应正式环境，实际部署单位是 `release` 上经确认的精确 Tag。
-- 当前正式站点为 `https://crystal.changyanedu.cn/`，部署在阿里云独立目录。
+- 当前正式站点为 `https://crystal.changyanedu.cn/`，服务器 IP 为 `123.57.56.114`，部署根目录为 `/data/wwwroot/crystal.changyanedu.cn`。
 - AWS 部署已停用，不得恢复或触发 AWS 工作流。
 - 只有产品所有者在当前指令中明确要求“部署/发布到正式环境”时，才能执行正式部署。合并 `release`、推送 `release`、创建 Tag 或测试环境验收，均不自动授予正式部署权限。
 - 当前正式部署保持人工触发。未经产品所有者另行明确修改本规则，不得新增由 `release` 推送或 Tag 推送直接触发的正式环境自动部署。
 - 正式部署无论手动执行还是未来经授权改造成自动化，都必须部署明确 Tag，而不是未标记的分支最新提交。
 - 部署产物必须包含 `release.json`，至少记录 `version`、`commit`、`deployedAt` 和环境标识。
 - 发布采用独立版本目录和 `current` 软链接切换，保留上一版本以便回滚，不得覆盖其他服务目录。
+- 正式部署完成后必须从公网检查首页、最新静态资源和 `/release.json`；只有 Tag、提交 SHA 与 `"environment": "production"` 全部匹配才算完成。
 
 ## 8. Main 备份规则
 
