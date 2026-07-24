@@ -264,7 +264,7 @@ export const ionicCrystals: Record<IonicCrystalId, IonicCrystalInfo> = {
     latticeType: '简单立方点阵',
     lattice: cubic(),
     latticePoints: primitiveCentering,
-    species: [{ ...ca, coordination: 12 }, ti, { ...oxygen, coordination: 2 }],
+    species: [{ ...ca, coordination: 12 }, ti, { ...oxygen, coordination: 6 }],
     sites: [
       { speciesId: 'ca', fractional: [0, 0, 0] },
       { speciesId: 'ti', fractional: [0.5, 0.5, 0.5] },
@@ -274,7 +274,7 @@ export const ionicCrystals: Record<IonicCrystalId, IonicCrystalInfo> = {
     ],
     ionPositions: 'Ca²⁺：顶角；Ti⁴⁺：体心；O²⁻：面心',
     ionCounts: 'Ca²⁺：1；Ti⁴⁺：1；O²⁻：3',
-    coordinationText: 'Ca²⁺：12；Ti⁴⁺：6；O²⁻：2(Ti)',
+    coordinationText: 'Ca²⁺：12；Ti⁴⁺：6；O²⁻：6（2Ti⁴⁺+4Ca²⁺）',
     basis: 'Ca²⁺(0,0,0) + Ti⁴⁺(1/2,1/2,1/2) + 3个面心O²⁻',
     basisIons: [{ speciesId: 'ca', count: 1 }, { speciesId: 'ti', count: 1 }, { speciesId: 'o', count: 3 }],
     teaching: 'CaTiO₃ 是钙钛矿的原型。Ca²⁺位于立方体顶角，O²⁻位于 6 个面心的有效 3 个位置，较小的 Ti⁴⁺占据体心并填入 6 个 O²⁻构成的 [TiO₆] 八面体。Ca²⁺处于 12 配位的立方八面体空隙中，相邻 [TiO₆] 八面体以顶点相连。',

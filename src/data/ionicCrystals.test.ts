@@ -378,6 +378,22 @@ describe('ionic coordination topology', () => {
     shell.forEach((neighbor) => expect(neighbor.distance).toBeCloseTo(shell[0].distance, 8));
   });
 
+  it('shows each perovskite oxygen coordinated by two Ti and four Ca ions', () => {
+    const crystal = ionicCrystals.catio3;
+    crystal.sites.forEach((site, siteIndex) => {
+      if (site.speciesId !== 'o') return;
+      const shell = ionicCoordinationShell(crystal, { siteIndex, fractional: site.fractional });
+      const speciesCounts = shell.reduce<Record<string, number>>((counts, neighbor) => {
+        counts[neighbor.speciesId] = (counts[neighbor.speciesId] ?? 0) + 1;
+        return counts;
+      }, {});
+
+      expect(shell).toHaveLength(6);
+      expect(speciesCounts).toEqual({ ti: 2, ca: 4 });
+    });
+    expect(crystal.coordinationText).toContain('O²⁻：6（2Ti⁴⁺+4Ca²⁺）');
+  });
+
   it('keeps fluorite Ca and F coordination at 8 and 4', () => {
     const crystal = ionicCrystals.caf2;
     crystal.species.forEach((species) => {
