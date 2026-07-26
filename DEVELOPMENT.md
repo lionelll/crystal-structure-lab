@@ -62,7 +62,7 @@ Feature 分支只负责开发和本地验证，不允许在该分支创建正式
 ## 4. 测试环境规则
 
 - 测试环境用于验证 `dev`，不得使用正式域名或覆盖正式目录。
-- 当前测试地址为 `http://123.57.11.145:8080/`，独立目录为 `/var/www/crystal-dev`。
+- 当前测试地址为 `http://123.57.11.145:8080/crystal/`，独立目录为 `/var/www/crystal-dev`。
 - `.github/workflows/deploy-dev.yml` 是唯一测试自动部署入口，只允许 `refs/heads/dev` 触发。
 - 工作流必须先执行 `npm ci`、`npm test` 和 `npm run build`；任何一步失败都不得更新测试站点。
 - 部署使用专用无 sudo SSH 账号、固定服务器 Host Key、独立版本目录和 `current` 软链接，禁止使用 root 密码或覆盖正式服务。

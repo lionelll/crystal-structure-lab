@@ -41,7 +41,7 @@ jobs:
         run: npm test
 
       - name: Build production assets
-        run: npm run build
+        run: npm run build -- --base=/crystal/
 
       - name: Write deployment metadata
         run: |
@@ -81,4 +81,4 @@ jobs:
              ln -sfn 'releases/$GITHUB_SHA' current.next; \
              mv -Tf current.next current; \
              test \"\$(readlink current)\" = 'releases/$GITHUB_SHA'; \
-             curl -fsS http://127.0.0.1:8080/release.json"
+             curl -fsS http://127.0.0.1:8080/crystal/release.json"
