@@ -68,7 +68,7 @@ export default function App() {
           <div className="brand-mark"><img src={brandLogo} alt="" /></div>
           <div>
             <h1>材科基 · 晶体结构 3D 可视化实验室</h1>
-            <span>Materials Fundamentals Crystal Lab</span>
+            <span>畅研材料考研交流群：692990403</span>
           </div>
         </div>
 
