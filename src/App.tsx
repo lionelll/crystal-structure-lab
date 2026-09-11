@@ -1,10 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useReducer, useRef, useState } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { CanvasErrorBoundary } from './components/CanvasErrorBoundary';
 import { CrystalCanvas, type CrystalCanvasHandle } from './components/CrystalCanvas';
 import { IonicCrystalCanvas } from './components/IonicCrystalCanvas';
 import { Icon } from './components/Icons';
 import { InfoPanel } from './components/InfoPanel';
+import { DrawingControls } from './components/DrawingControls';
+import { drawingReducer, initialDrawingState } from './core/drawingState';
 import {
   defaultSettings,
   isCrystalType,
@@ -32,6 +34,13 @@ export default function App() {
   const [ionicCrystal, setIonicCrystal] = useState<IonicCrystalId>('cscl');
   const [ionicModule, setIonicModule] = useState<IonicModuleId>('cell');
   const [settings, setSettings] = useState<DisplaySettings>(defaultSettings);
+  const [drawingState, dispatchDrawing] = useReducer(drawingReducer, undefined, initialDrawingState);
+  const drawingActive = family === 'metal' && activeModule === 'drawing';
+  const effectiveSettings = drawingActive ? { ...settings, showSupercell: false, autoRotate: drawingState.autoRotate } : settings;
+  const setAutoRotate = (value: boolean) => {
+    if (drawingActive) dispatchDrawing({ type: 'rotate', value });
+    else setSettings((current) => ({ ...current, autoRotate: value }));
+  };
   const canvasRef = useRef<CrystalCanvasHandle>(null);
   const resolvedCrystal = resolveCrystal(crystal);
   const resolvedIonicCrystal = resolveIonicCrystal(ionicCrystal);
@@ -44,10 +53,13 @@ export default function App() {
 
   const handleCrystalChange = (next: CrystalType) => {
     if (!isCrystalType(next)) return;
+    if (next !== crystal) dispatchDrawing({ type: 'reset' });
+    if (next === 'HCP' && activeModule === 'drawing') setActiveModule('cell');
     setCrystal(next);
   };
 
   const handleFamilyChange = (next: CrystalFamily) => {
+    if (next !== family) dispatchDrawing({ type: 'reset' });
     setFamily(next);
     setSettings((current) => ({
       ...current,
@@ -74,8 +86,8 @@ export default function App() {
 
         <div className="top-actions">
           <button type="button" onClick={() => canvasRef.current?.resetView()}><Icon name="home" /><span>重置视角</span></button>
-          <button className={settings.autoRotate ? 'active' : ''} type="button" onClick={() => setSettings((prev) => ({ ...prev, autoRotate: true }))}><Icon name="rotate" /><span>自动旋转</span></button>
-          <button className={!settings.autoRotate ? 'active' : ''} type="button" onClick={() => setSettings((prev) => ({ ...prev, autoRotate: false }))}><Icon name="pause" /><span>暂停动画</span></button>
+          <button className={effectiveSettings.autoRotate ? 'active' : ''} type="button" onClick={() => setAutoRotate(true)}><Icon name="rotate" /><span>自动旋转</span></button>
+          <button className={!effectiveSettings.autoRotate ? 'active' : ''} type="button" onClick={() => setAutoRotate(false)}><Icon name="pause" /><span>暂停动画</span></button>
         </div>
       </header>
 
@@ -90,7 +102,11 @@ export default function App() {
           onCrystalChange={handleCrystalChange}
           onIonicCrystalChange={handleIonicCrystalChange}
           onModuleChange={(id) => {
-            if (family === 'metal') setActiveModule(id as ModuleId);
+            if (family === 'metal') {
+              if (id === 'drawing' && crystal === 'HCP') return;
+              if (id !== activeModule) dispatchDrawing({ type: 'reset' });
+              setActiveModule(id as ModuleId);
+            }
             else setIonicModule(id as IonicModuleId);
           }}
           onSettingsChange={setSettings}
@@ -110,7 +126,8 @@ export default function App() {
                   ref={canvasRef}
                   crystal={resolvedCrystal.type}
                   activeModule={activeModule}
-                  settings={settings}
+                  settings={effectiveSettings}
+                  drawing={drawingState.applied}
                 />
               ) : (
                 <IonicCrystalCanvas
@@ -121,6 +138,7 @@ export default function App() {
                 />
               )}
             </CanvasErrorBoundary>
+            {drawingActive && <DrawingControls key={crystal} state={drawingState} dispatch={dispatchDrawing} />}
           </div>
         </section>
 
@@ -130,6 +148,7 @@ export default function App() {
           activeModule={activeModule}
           ionicCrystal={resolvedIonicCrystal}
           ionicModule={ionicModule}
+          drawingState={drawingState}
         />
       </main>
 

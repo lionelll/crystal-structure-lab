@@ -6,6 +6,7 @@ export type ModuleId =
   | 'stacking'
   | 'bravais'
   | 'packing'
+  | 'drawing'
   | 'coordination'
   | 'tetra'
   | 'octa';
@@ -47,9 +48,10 @@ export const modules: ModuleItem[] = [
   { id: 'stacking', index: 2, title: '堆垛模型', summary: '展示晶体沿典型方向的逐层堆垛关系。' },
   { id: 'bravais', index: 3, title: '空间点阵', summary: '用独立格点展示布拉菲点阵，并可扩展观察平移重复特征。' },
   { id: 'packing', index: 4, title: '密排面 / 密排方向', summary: '高亮典型密排面，并用箭头标示密排方向。' },
-  { id: 'coordination', index: 5, title: '配位数', summary: '选择中心原子，按距离高亮最近邻。' },
-  { id: 'tetra', index: 6, title: '四面体间隙', summary: '显示四面体间隙位置和围成间隙的基体原子。' },
-  { id: 'octa', index: 7, title: '八面体间隙', summary: '显示八面体间隙位置和多面体连接。' },
+  { id: 'drawing', index: 5, title: '晶面/晶向绘制', summary: '在单个立方晶胞中绘制晶面和晶向。' },
+  { id: 'coordination', index: 6, title: '配位数', summary: '选择中心原子，按距离高亮最近邻。' },
+  { id: 'tetra', index: 7, title: '四面体间隙', summary: '显示四面体间隙位置和围成间隙的基体原子。' },
+  { id: 'octa', index: 8, title: '八面体间隙', summary: '显示八面体间隙位置和多面体连接。' },
 ];
 
 

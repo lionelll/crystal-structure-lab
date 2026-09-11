@@ -64,15 +64,16 @@ function nearestDistance(crystal: CrystalType) {
 }
 
 describe('module and settings cleanup', () => {
-  it('keeps the seven requested modules in order', () => {
+  it('keeps the existing modules with drawing immediately after packing', () => {
     expect(modules.map(({ id, index }) => [id, index])).toEqual([
       ['cell', 1],
       ['stacking', 2],
       ['bravais', 3],
       ['packing', 4],
-      ['coordination', 5],
-      ['tetra', 6],
-      ['octa', 7],
+      ['drawing', 5],
+      ['coordination', 6],
+      ['tetra', 7],
+      ['octa', 8],
     ]);
   });
 

@@ -2,6 +2,11 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { crystals, resolveCrystal, type CrystalType, type DisplaySettings, type ModuleId } from '../data/crystals';
+import type { CrystalDrawing } from '../core/crystalDrawing';
+import { createDrawingScene, resizeDrawingCamera, setDrawingCamera, tickDrawingScene, updateDrawingScene, type DrawingScene } from '../render/crystalDrawingScene';
+import { addPackingDirectionVector, createPackingPlaneMaterial, packingDirectionColor } from '../render/packingPrimitives';
+import { createTextSprite } from '../render/textSprite';
+export { packingDirectionStyle, packingPlaneColor } from '../render/packingPrimitives';
 import {
   hcpCellAtoms,
   hcpCellOffset,
@@ -20,6 +25,7 @@ interface Props {
   crystal: CrystalType;
   activeModule: ModuleId;
   settings: DisplaySettings;
+  drawing?: CrystalDrawing | null;
 }
 
 export type Vec3Tuple = [number, number, number];
@@ -106,19 +112,12 @@ export const bravaisPointStyle = {
   size: 0.095,
 } as const;
 
-export const packingDirectionStyle = {
-  shaftRadius: 0.018,
-  headLength: 0.34,
-  headWidth: 0.19,
-} as const;
-
-export const packingPlaneColor = '#3B82F6';
 
 export function sceneStructureKey(crystal: CrystalType, activeModule: ModuleId, settings: DisplaySettings) {
   return [
     crystal,
     activeModule,
-    settings.showSupercell,
+    activeModule === 'drawing' ? false : settings.showSupercell,
   ].join('|');
 }
 
@@ -223,13 +222,14 @@ function createAtomMaterial(color: THREE.ColorRepresentation, options: AtomMater
   });
 }
 
-export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function CrystalCanvas({ crystal: crystalValue, activeModule, settings }, ref) {
+export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function CrystalCanvas({ crystal: crystalValue, activeModule, settings, drawing = null }, ref) {
   const crystal = resolveCrystal(crystalValue).type;
   const mountRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const rootRef = useRef<THREE.Group | null>(null);
+  const drawingSceneRef = useRef<DrawingScene | null>(null);
   const pickablesRef = useRef<THREE.Object3D[]>([]);
   const settingsRef = useRef(settings);
   const moduleRef = useRef(activeModule);
@@ -278,7 +278,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     if (!mount) return;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x05070c, 8, 16);
+    const fog = new THREE.Fog(0x05070c, 8, 16);
+    scene.fog = fog;
     const camera = new THREE.PerspectiveCamera(45, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.up.set(0, 0, 1);
     camera.position.set(4.5, 3.9, 5.4);
@@ -325,6 +326,11 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       camera.aspect = mount.clientWidth / mount.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(mount.clientWidth, mount.clientHeight);
+      if (moduleRef.current === 'drawing') {
+        const ratio = resizeDrawingCamera(camera, controls.target, new THREE.Vector2(mount.clientWidth, mount.clientHeight), cameraPreset('FCC', 1, 'cell'));
+        controls.minDistance *= ratio;
+        controls.maxDistance *= ratio;
+      }
     });
     resizeObserver.observe(mount);
 
@@ -360,6 +366,9 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       frame = requestAnimationFrame(animate);
       controls.update();
       const s = settingsRef.current;
+      scene.fog = moduleRef.current === 'drawing' ? null : fog;
+      bg.visible = moduleRef.current !== 'drawing';
+      if (drawingSceneRef.current) tickDrawingScene(drawingSceneRef.current, performance.now());
       if (s.autoRotate && rootRef.current) {
         rootRef.current.rotation.z += AUTO_ROTATE_RADIANS_PER_FRAME;
       }
@@ -399,6 +408,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
       controls.dispose();
+      clearGroup(root);
       renderer.dispose();
       mount.removeChild(renderer.domElement);
     };
@@ -412,6 +422,20 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     coordinationFrameGroupRef.current = null;
     gapSelectionContextRef.current = null;
     coordinationSelectionContextRef.current = null;
+    drawingSceneRef.current = null;
+    if (activeModule === 'drawing') {
+      coordAnimRef.current = { objects: [], startTime: 0 };
+      centerPulseRef.current = null;
+      drawingSceneRef.current = createDrawingScene(root);
+      const controls = controlsRef.current;
+      const limits = controls && { min: controls.minDistance, max: controls.maxDistance };
+      return () => {
+        if (controls && limits) {
+          controls.minDistance = limits.min;
+          controls.maxDistance = limits.max;
+        }
+      };
+    }
 
     const repeat = settings.showSupercell ? 2 : 1;
     const standaloneModule = activeModule === 'bravais' || activeModule === 'stacking';
@@ -498,6 +522,10 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   }, [structureKey]);
 
   useEffect(() => {
+    if (drawingSceneRef.current) updateDrawingScene(drawingSceneRef.current, drawing);
+  }, [drawing, structureKey]);
+
+  useEffect(() => {
     const context = gapSelectionContextRef.current;
     if (!context) return;
     renderGapSelectionLayer(
@@ -530,7 +558,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
 
     setDefaultCamera(camera, controls, crystal, repeat, activeModule);
     setCellFrameGroupProgress(coordinationFrameGroupRef.current, 1);
-  }, [activeModule, crystal, settings.showSupercell]);
+  }, [structureKey]);
 
   useEffect(() => {
     if (activeModule !== 'coordination') return;
@@ -576,7 +604,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   if (renderError) throw renderError;
 
   return (
-    <div className="viewport-wrap">
+    <div className={`viewport-wrap ${activeModule === 'drawing' ? 'drawing-viewport' : ''}`}>
       <div className="three-mount" ref={mountRef} />
     </div>
   );
@@ -601,6 +629,7 @@ function clearGroup(group: THREE.Group) {
 }
 
 export function createAtoms(crystal: CrystalType, repeat: number, moduleId: ModuleId): RenderAtom[] {
+  if (moduleId === 'drawing') return [];
   if (crystal === 'HCP') return createHcpAtoms(repeat, moduleId);
   const base = crystal === 'FCC'
     ? [...cornerPositions.map((p) => ({ p, kind: 'base' as const })), ...fccFacePositions.map((p) => ({ p, kind: 'face' as const }))]
@@ -870,9 +899,7 @@ function addHcpFrame(group: THREE.Group, offset: THREE.Vector3, vivid: boolean) 
 }
 
 function addPacking(group: THREE.Group, crystal: CrystalType) {
-  const planeColor = packingPlaneColor;
-  const dirColor = '#EF4444';
-  const planeOpacity = 0.6;
+  const dirColor = packingDirectionColor;
   let vertices: THREE.Vector3[];
   if (crystal === 'HCP') {
     vertices = hcpTop.map((point) => point.clone());
@@ -881,7 +908,7 @@ function addPacking(group: THREE.Group, crystal: CrystalType) {
   } else {
     vertices = [cubicPoint([1, 0, 0], 1), cubicPoint([0, 1, 0], 1), cubicPoint([0, 0, 1], 1)];
   }
-  const material = new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: planeOpacity, side: THREE.DoubleSide, depthWrite: false });
+  const material = createPackingPlaneMaterial();
   const geometry = new THREE.BufferGeometry().setFromPoints(vertices);
   if (vertices.length === 3) geometry.setIndex([0, 1, 2]);
   else if (vertices.length === 4) geometry.setIndex([0, 1, 2, 0, 2, 3]);
@@ -917,34 +944,6 @@ function addPacking(group: THREE.Group, crystal: CrystalType) {
   }
 }
 
-function addPackingDirectionVector(group: THREE.Group, start: THREE.Vector3, end: THREE.Vector3, color: THREE.ColorRepresentation) {
-  const direction = end.clone().sub(start);
-  const shaft = new THREE.Mesh(
-    new THREE.TubeGeometry(new THREE.LineCurve3(start, end), 12, packingDirectionStyle.shaftRadius, 10, false),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, depthTest: false, fog: false }),
-  );
-  shaft.renderOrder = 20;
-  group.add(shaft);
-
-  const arrow = new THREE.ArrowHelper(
-    direction.clone().normalize(),
-    start,
-    direction.length(),
-    color,
-    packingDirectionStyle.headLength,
-    packingDirectionStyle.headWidth,
-  );
-  arrow.traverse((object) => {
-    const objectMaterial = (object as THREE.Mesh).material as THREE.Material | undefined;
-    if (objectMaterial) {
-      objectMaterial.depthTest = false;
-      objectMaterial.transparent = true;
-      if ('fog' in objectMaterial) objectMaterial.fog = false;
-    }
-    object.renderOrder = 20;
-  });
-  group.add(arrow);
-}
 
 function positionKey(value: THREE.Vector3) {
   return value.toArray().map((coordinate) => Math.round(coordinate * 1000)).join(',');
@@ -1349,28 +1348,6 @@ function closestAtomIndex(atoms: RenderAtom[], target: THREE.Vector3) {
   return index;
 }
 
-function createTextSprite(text: string, color = '#ffffff', size = 36) {
-  const canvas = document.createElement('canvas');
-  const measure = canvas.getContext('2d')!;
-  measure.font = `700 ${size}px Inter, system-ui, sans-serif`;
-  const padding = 28;
-  canvas.width = Math.max(128, Math.min(1024, Math.ceil(measure.measureText(text).width + padding * 2)));
-  canvas.height = Math.max(72, Math.ceil(size * 2.2));
-  const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.font = `700 ${size}px Inter, system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(0,0,0,.55)';
-  ctx.shadowBlur = 8;
-  ctx.fillStyle = color;
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
-  sprite.scale.set((canvas.width / canvas.height) * 0.3, 0.3, 1);
-  return sprite;
-}
 
 function createRoundPointTexture() {
   const canvas = document.createElement('canvas');
@@ -1403,7 +1380,17 @@ export function cameraPreset(crystal: CrystalType, repeat: number, activeModule:
 }
 
 function setDefaultCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, crystal: CrystalType, repeat: number, activeModule: ModuleId) {
+  if (activeModule === 'drawing') {
+    const height = controls.domElement?.clientHeight || 700;
+    const width = controls.domElement?.clientWidth || camera.aspect * height;
+    setDrawingCamera(camera, controls.target, new THREE.Vector2(width, height), cameraPreset(crystal, 1, 'cell'));
+    controls.minDistance = 3.2;
+    controls.maxDistance = 50;
+    controls.update();
+    return;
+  }
   const preset = cameraPreset(crystal, repeat, activeModule);
+  controls.maxDistance = 18;
   camera.up.set(...preset.up);
   camera.position.set(...preset.position);
   const target = new THREE.Vector3(...preset.target);

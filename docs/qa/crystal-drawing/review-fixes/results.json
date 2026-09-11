@@ -1,0 +1,151 @@
+{
+  "url": "http://127.0.0.1:5180/crystal/",
+  "scope": "feature/v1.2.0 drawing only",
+  "production": false,
+  "desktop": [
+    1600,
+    900
+  ],
+  "mobile": [
+    390,
+    844
+  ],
+  "dpr": 1,
+  "zoom": "100%",
+  "errors": [],
+  "failedRequests": [],
+  "checks": [
+    {
+      "name": "Subpath scripts, styles and icon requests",
+      "paths": [
+        "/crystal/@vite/client",
+        "/crystal/src/assets/brand-logo.png",
+        "/crystal/src/main.tsx"
+      ]
+    },
+    {
+      "name": "Drag + zoom + repeated viewport round trip",
+      "resizeDifference": 0
+    },
+    {
+      "name": "FCC negative plane",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 19875
+      }
+    },
+    {
+      "name": "FCC direction, rotate, pause, clear",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 2039
+      }
+    },
+    {
+      "name": "BCC negative plane",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 19875
+      }
+    },
+    {
+      "name": "BCC direction, rotate, pause, clear",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 2039
+      }
+    },
+    {
+      "name": "390px drawing controls, plane/direction, rotation and clear",
+      "pixels": {
+        "width": 374,
+        "height": 290,
+        "colored": 732
+      }
+    },
+    {
+      "name": "Real WebGL full rotation and label continuity",
+      "results": [
+        {
+          "viewport": [
+            374,
+            290
+          ],
+          "origins": 8,
+          "rotationSamplesPerOrigin": 72,
+          "maxSpriteOverflow": -0.04608753502098262,
+          "colored": 1484
+        },
+        {
+          "viewport": [
+            364,
+            550
+          ],
+          "origins": 8,
+          "rotationSamplesPerOrigin": 72,
+          "maxSpriteOverflow": -0.0750462915239064,
+          "colored": 1613
+        },
+        {
+          "viewport": [
+            840,
+            700
+          ],
+          "origins": 8,
+          "rotationSamplesPerOrigin": 72,
+          "maxSpriteOverflow": -0.02299329058398525,
+          "colored": 3387
+        },
+        {
+          "viewport": [
+            1260,
+            700
+          ],
+          "origins": 8,
+          "rotationSamplesPerOrigin": 72,
+          "maxSpriteOverflow": -0.02299329058398525,
+          "colored": 3364
+        },
+        {
+          "indices": [
+            1,
+            1,
+            0
+          ],
+          "rotationSamples": 3601,
+          "maxLabelStepPx": 0.1428666918441841
+        },
+        {
+          "indices": [
+            1,
+            0,
+            0
+          ],
+          "rotationSamples": 3601,
+          "maxLabelStepPx": 0.09735987774711381
+        },
+        {
+          "indices": [
+            -1,
+            1,
+            1
+          ],
+          "rotationSamples": 3601,
+          "maxLabelStepPx": 1.4283866490052344
+        }
+      ]
+    },
+    {
+      "name": "Reload and fresh drawing",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 10885
+      }
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "url": "http://127.0.0.1:5180/crystal/",
+  "viewport": [
+    1600,
+    1000
+  ],
+  "mobileViewport": [
+    390,
+    844
+  ],
+  "dpr": 1,
+  "zoom": "100%",
+  "errors": [],
+  "requestsFailed": [],
+  "checks": [
+    {
+      "name": "FCC (111) visible",
+      "pixels": {
+        "width": 850,
+        "height": 802,
+        "colored": 8583,
+        "blue": 7591,
+        "red": 230
+      }
+    },
+    {
+      "name": "Negative direction visible",
+      "pixels": {
+        "width": 850,
+        "height": 802,
+        "colored": 2054,
+        "blue": 399,
+        "red": 1045
+      }
+    },
+    {
+      "name": "Camera continuity after draw/clear",
+      "continuityDifference": 0
+    },
+    {
+      "name": "21 existing metal module views and HCP restriction",
+      "passed": true
+    },
+    {
+      "name": "36 ionic views and ion selection",
+      "passed": true
+    },
+    {
+      "name": "390px mobile controls, overflow and canvas",
+      "pixels": {
+        "width": 374,
+        "height": 323,
+        "colored": 4697,
+        "blue": 4105,
+        "red": 226
+      }
+    }
+  ]
+}

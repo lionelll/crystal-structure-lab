@@ -29,6 +29,7 @@ const moduleIcons: Record<ModuleId | IonicModuleId, Parameters<typeof Icon>[0]['
   stacking: 'layers',
   bravais: 'lattice',
   packing: 'plane',
+  drawing: 'section',
   coordination: 'nodes',
   tetra: 'tetra',
   octa: 'octa',
@@ -51,7 +52,9 @@ export function ControlPanel({
   onSettingsChange,
 }: Props) {
   const patch = (partial: Partial<DisplaySettings>) => onSettingsChange({ ...settings, ...partial });
-  const activeModules = family === 'metal' ? modules : ionicModules;
+  const activeModules = family === 'metal'
+    ? modules.filter((item) => crystal !== 'HCP' || item.id !== 'drawing')
+    : ionicModules;
   const [crystalSelectionExpanded, setCrystalSelectionExpanded] = useState(defaultPanelExpanded);
   const [modulesExpanded, setModulesExpanded] = useState(defaultPanelExpanded);
   const collapseOnMobile = (collapse: () => void) => {
@@ -165,7 +168,7 @@ export function ControlPanel({
         </div>
         <div className="display-settings-tab">
           <div className="switch-list">
-            <Toggle disabled={family === 'metal' && activeModule === 'stacking'} checked={settings.showSupercell} label="显示相邻晶胞（2×2×2）" onChange={(checked) => patch({ showSupercell: checked })} />
+            <Toggle disabled={family === 'metal' && (activeModule === 'stacking' || activeModule === 'drawing')} checked={activeModule === 'drawing' ? false : settings.showSupercell} label="显示相邻晶胞（2×2×2）" onChange={(checked) => patch({ showSupercell: checked })} />
           </div>
         </div>
       </section>

@@ -1,0 +1,83 @@
+{
+  "phase": "before",
+  "url": "http://127.0.0.1:5180/crystal/",
+  "scope": "feature/v1.2.0 drawing only",
+  "dpr": 1,
+  "zoom": "100%",
+  "errors": [],
+  "failedRequests": [],
+  "checks": [
+    {
+      "name": "desktop-fcc",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "canvas": [
+        850,
+        702
+      ],
+      "bounds": {
+        "width": 185,
+        "height": 203,
+        "left": 334,
+        "top": 268,
+        "pixels": 1231
+      }
+    },
+    {
+      "name": "desktop-bcc",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "canvas": [
+        850,
+        702
+      ],
+      "bounds": {
+        "width": 185,
+        "height": 203,
+        "left": 334,
+        "top": 268,
+        "pixels": 1231
+      }
+    },
+    {
+      "name": "mobile-fcc",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "canvas": [
+        374,
+        290
+      ],
+      "bounds": {
+        "width": 69,
+        "height": 77,
+        "left": 153,
+        "top": 113,
+        "pixels": 422
+      }
+    },
+    {
+      "name": "mobile-bcc",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "canvas": [
+        374,
+        290
+      ],
+      "bounds": {
+        "width": 69,
+        "height": 77,
+        "left": 153,
+        "top": 113,
+        "pixels": 422
+      }
+    }
+  ]
+}

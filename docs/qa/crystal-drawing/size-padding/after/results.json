@@ -1,0 +1,99 @@
+{
+  "phase": "after",
+  "url": "http://127.0.0.1:5180/crystal/",
+  "scope": "feature/v1.2.0 drawing only",
+  "dpr": 1,
+  "zoom": "100%",
+  "errors": [],
+  "failedRequests": [],
+  "checks": [
+    {
+      "name": "desktop-fcc",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "canvas": [
+        850,
+        702
+      ],
+      "bounds": {
+        "width": 213,
+        "height": 233,
+        "left": 320,
+        "top": 252,
+        "pixels": 1336
+      },
+      "ratios": {
+        "width": 1.0191387559808613,
+        "height": 1.0219298245614035
+      }
+    },
+    {
+      "name": "desktop-bcc",
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      },
+      "canvas": [
+        850,
+        702
+      ],
+      "bounds": {
+        "width": 213,
+        "height": 233,
+        "left": 320,
+        "top": 252,
+        "pixels": 1336
+      },
+      "ratios": {
+        "width": 1.0191387559808613,
+        "height": 1.0219298245614035
+      }
+    },
+    {
+      "name": "mobile-fcc",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "canvas": [
+        374,
+        290
+      ],
+      "bounds": {
+        "width": 82,
+        "height": 90,
+        "left": 147,
+        "top": 107,
+        "pixels": 493
+      },
+      "ratios": {
+        "width": 1.0512820512820513,
+        "height": 1.0465116279069768
+      }
+    },
+    {
+      "name": "mobile-bcc",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "canvas": [
+        374,
+        290
+      ],
+      "bounds": {
+        "width": 82,
+        "height": 90,
+        "left": 147,
+        "top": 107,
+        "pixels": 493
+      },
+      "ratios": {
+        "width": 1.0512820512820513,
+        "height": 1.0465116279069768
+      }
+    }
+  ]
+}

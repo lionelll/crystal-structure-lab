@@ -1,5 +1,7 @@
 import { crystals, resolveCrystal, type CrystalType, type ModuleId } from '../data/crystals';
 import { ionicCrystals, type CrystalFamily, type IonicCrystalInfo, type IonicModuleId } from '../data/ionicCrystals';
+import { initialDrawingState, type DrawingState } from '../core/drawingState';
+import { DrawingInfo } from './DrawingInfo';
 
 interface Props {
   family: CrystalFamily;
@@ -7,9 +9,10 @@ interface Props {
   activeModule: ModuleId;
   ionicCrystal?: IonicCrystalInfo;
   ionicModule: IonicModuleId;
+  drawingState?: DrawingState;
 }
 
-const moduleDetails: Record<ModuleId, (type: CrystalType) => string> = {
+const moduleDetails: Record<Exclude<ModuleId, 'drawing'>, (type: CrystalType) => string> = {
   cell: (type) => `${type} 基础晶胞显示角点、中心或面心原子，并保留晶胞框线和晶系坐标轴。`,
   stacking: (type) => crystals[type].stacking,
   bravais: () => '空间点阵由当前晶体类型派生并独立显示；开启相邻晶胞后可观察三维周期重复。',
@@ -19,7 +22,7 @@ const moduleDetails: Record<ModuleId, (type: CrystalType) => string> = {
   octa: (type) => crystals[type].gaps.octa,
 };
 
-export function InfoPanel({ family, crystal, activeModule, ionicCrystal }: Props) {
+export function InfoPanel({ family, crystal, activeModule, ionicCrystal, drawingState }: Props) {
   if (family === 'ionic') {
     const info = ionicCrystal ?? ionicCrystals.cscl;
     return (
@@ -44,6 +47,7 @@ export function InfoPanel({ family, crystal, activeModule, ionicCrystal }: Props
     );
   }
 
+  if (activeModule === 'drawing') return <DrawingInfo state={drawingState ?? initialDrawingState()} />;
   const info = resolveCrystal(crystal);
   const crystalType = info.type;
   const structureName = info.title.replace('结构', '');

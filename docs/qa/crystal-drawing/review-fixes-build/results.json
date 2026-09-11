@@ -1,0 +1,79 @@
+{
+  "url": "http://127.0.0.1:4180/crystal/",
+  "scope": "feature/v1.2.0 drawing only",
+  "production": true,
+  "desktop": [
+    1600,
+    900
+  ],
+  "mobile": [
+    390,
+    844
+  ],
+  "dpr": 1,
+  "zoom": "100%",
+  "errors": [],
+  "failedRequests": [],
+  "checks": [
+    {
+      "name": "Subpath scripts, styles and icon requests",
+      "paths": [
+        "/crystal/assets/brand-logo-DZ8fMDmF.png",
+        "/crystal/assets/index-JK49dAkC.js",
+        "/crystal/assets/index-CVdaQsgv.css"
+      ]
+    },
+    {
+      "name": "Drag + zoom + repeated viewport round trip",
+      "resizeDifference": 0
+    },
+    {
+      "name": "FCC negative plane",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 19875
+      }
+    },
+    {
+      "name": "FCC direction, rotate, pause, clear",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 2039
+      }
+    },
+    {
+      "name": "BCC negative plane",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 19875
+      }
+    },
+    {
+      "name": "BCC direction, rotate, pause, clear",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 2039
+      }
+    },
+    {
+      "name": "390px drawing controls, plane/direction, rotation and clear",
+      "pixels": {
+        "width": 374,
+        "height": 290,
+        "colored": 720
+      }
+    },
+    {
+      "name": "Reload and fresh drawing",
+      "pixels": {
+        "width": 850,
+        "height": 702,
+        "colored": 10885
+      }
+    }
+  ]
+}
