@@ -1,6 +1,10 @@
 export type Point3 = [number, number, number];
 export type DrawingMode = 'plane' | 'direction';
 export type IndexDraft = [string, string, string];
+export interface DrawingIndexToken {
+  text: string;
+  negative: boolean;
+}
 
 interface DrawingBase {
   indices: Point3;
@@ -77,10 +81,8 @@ export function createCrystalDrawing(mode: DrawingMode, indices: Point3): Crysta
   return { mode, indices: [...indices], origin, end, divisor };
 }
 
-export function formatDrawingIndex(mode: DrawingMode, indices: Point3) {
-  const parts = indices.map((v) => v < 0 ? String(Math.abs(v)).split('').map((digit) => `${digit}\u0305`).join('') : String(v));
-  const text = parts.join(indices.some((v) => Math.abs(v) > 9) ? ' ' : '');
-  return mode === 'plane' ? `(${text})` : `[${text}]`;
+export function drawingIndexTokens(indices: Point3): DrawingIndexToken[] {
+  return indices.map((value) => ({ text: String(Math.abs(value)), negative: value < 0 }));
 }
 
 export function fractionText(numerator: number, denominator = 1) {

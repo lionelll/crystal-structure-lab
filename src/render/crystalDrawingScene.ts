@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { cubeCorners, cubeEdges, formatDrawingIndex, type CrystalDrawing, type Point3 } from '../core/crystalDrawing';
+import { cubeCorners, cubeEdges, type CrystalDrawing, type Point3 } from '../core/crystalDrawing';
 import { latticeGeometry } from '../data/latticeGeometry';
 import { addPackingDirectionVector, createPackingPlaneMaterial } from './packingPrimitives';
 import { createTextSprite } from './textSprite';
+import { createDrawingIndexSprite } from './drawingIndexSprite';
 
 const scale = latticeGeometry.FCC.worldA;
 export const drawingAxisLength = 1.5;
@@ -10,8 +11,7 @@ const labelHeight = 36;
 const axisLabelOffset = 0.12;
 const worldPoint = (point: Point3) => new THREE.Vector3(...point).addScalar(-0.5).multiplyScalar(scale);
 
-function drawingLabel(text: string, color: string, size = 36) {
-  const label = createTextSprite(text, color, size);
+function scaleDrawingLabel(label: THREE.Sprite) {
   const ratio = label.scale.x / label.scale.y;
   const position = new THREE.Vector3();
   const viewport = new THREE.Vector2();
@@ -24,6 +24,10 @@ function drawingLabel(text: string, color: string, size = 36) {
     label.updateMatrixWorld();
   };
   return label;
+}
+
+function drawingLabel(text: string, color: string, size = 36) {
+  return scaleDrawingLabel(createTextSprite(text, color, size));
 }
 
 function offsetDirectionLabel(label: THREE.Sprite, start: THREE.Vector3, end: THREE.Vector3) {
@@ -171,7 +175,7 @@ export function updateDrawingScene(context: DrawingScene, drawing: CrystalDrawin
     addPackingDirectionVector(context.overlay, start, end);
     labelPosition = start.clone().lerp(end, 0.65);
   }
-  const label = drawingLabel(formatDrawingIndex(drawing.mode, drawing.indices), '#ffffff', 40);
+  const label = scaleDrawingLabel(createDrawingIndexSprite(drawing.mode, drawing.indices));
   label.name = 'drawing-index-label';
   label.position.copy(labelPosition).add(new THREE.Vector3(0, 0, 0.32));
   if (drawing.mode === 'direction') offsetDirectionLabel(label, worldPoint(origin), worldPoint(drawing.end));

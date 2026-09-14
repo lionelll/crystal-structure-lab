@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCrystalDrawing, drawingOrigin, formatDrawingIndex, fractionText, interceptText, parseIndices, type Point3 } from './crystalDrawing';
+import { createCrystalDrawing, drawingIndexTokens, drawingOrigin, fractionText, interceptText, parseIndices, type Point3 } from './crystalDrawing';
 
 describe('crystal drawing geometry', () => {
   it.each<[Point3, number]>([
@@ -64,8 +64,11 @@ describe('crystal drawing geometry', () => {
     expect(parseIndices(['-2', '+1', ' 0 '])).toEqual([-2, 1, 0]);
   });
   it('formats negative indices with bars and exact rational values', () => {
-    expect(formatDrawingIndex('plane', [-1, 1, 0])).toBe('(1\u030510)');
-    expect(formatDrawingIndex('direction', [12, 1, 0])).toBe('[12 1 0]');
+    expect(drawingIndexTokens([1, -2, 1])).toEqual([
+      { text: '1', negative: false },
+      { text: '2', negative: true },
+      { text: '1', negative: false },
+    ]);
     expect(fractionText(-2, 4)).toBe('-1/2');
     expect(fractionText(0, 4)).toBe('0');
   });

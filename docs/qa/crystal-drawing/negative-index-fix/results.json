@@ -1,0 +1,23 @@
+{
+  "url": "http://127.0.0.1:4181/crystal/",
+  "scope": "feature/v1.2.0 drawing information and negative-index labels only",
+  "errors": [],
+  "failedRequests": [],
+  "checks": [
+    {
+      "name": "Desktop current information, exact negative token and no teaching card",
+      "indexStyle": {
+        "tokenWidth": 9.421875,
+        "left": 0.6,
+        "right": 0.6,
+        "height": 2,
+        "position": "absolute"
+      }
+    },
+    {
+      "name": "390px current information and negative index",
+      "noHorizontalOverflow": true
+    }
+  ],
+  "status": "passed"
+}

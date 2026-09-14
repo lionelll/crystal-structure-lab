@@ -1,5 +1,18 @@
 # v1.2.0 晶面/晶向绘制本地验收
 
+## 2026-09-14 绘制信息与负指数标注修复（最新）
+
+- 仅修改 `feature/v1.2.0` 的晶面/晶向绘制：当前信息移除“绘图晶胞”，并删除该模块整块“教学解析”；其他模块的右栏内容不变。
+- 负指数不再依赖字体对 Unicode 组合上划线的定位。右栏把三个指数拆为独立元素，仅对负数元素绘制上划线；3D 标签按实际字体宽度分段测量，并仅在负数 run 的水平范围内单独画线。
+- `[1,-2,1]` / `(1,-2,1)` 的回归锁定为只有中间 `2` 带上划线；多位指数的分隔空白不纳入上划线。新增右栏结构、指数 token 和 Canvas 布局测试。
+- `npm test`：225/225 通过；`npm run build -- --base=/crystal/` 通过。保留既有单 JS 包超过 500kB 的构建提示。
+- Chrome、DPR=1、缩放 100% 下完成桌面 1600×900 和手机 390×844 验收：绘图晶胞与教学解析均不生成；上划线只覆盖 `2`；手机无横向溢出；控制台错误和资源失败均为 0。
+- 验收结果：[results.json](docs/qa/crystal-drawing/negative-index-fix/results.json)；截图：[桌面完整页](docs/qa/crystal-drawing/negative-index-fix/drawing-negative-index-desktop-full.png)、[当前信息](docs/qa/crystal-drawing/negative-index-fix/drawing-negative-index-current-info.png)、[3D 标签](docs/qa/crystal-drawing/negative-index-fix/drawing-negative-index-stage.png)、[手机完整页](docs/qa/crystal-drawing/negative-index-fix/drawing-negative-index-mobile-full.png)。
+- 当前构建 SHA-256：`dist/index.html` 为 `6cd2746b784e793fec823513dc494d4b9c9e55e9a6634e997dd5c4b37bdf1092`，JS 为 `6e553799f0b21cae7038f2c7f9c2944da4c1ddbae647c6f0e3972d666b6a352e`，CSS 为 `a33cf803361f9988d3bbccce01c57c8764221cb7026afbb7d5f93674ee87c6ab`。
+- 本轮未提交、未推送、未合并、未打 Tag、未部署；`dev/release/main` 与已发布模块未修改。
+
+以下为前一轮及更早的验收记录；最新右栏与负指数显示以上述内容为准。
+
 ## 2026-09-11 绘制取景再次收紧（最新）
 
 - 用户追加要求“再稍微大一些”。仅收紧绘制相机中完整标签边界之外的附加像素留白，并将距离余量从 0.1 收至 0.05；轴长仍为 1.5a。保持固定取景、原朝向、绘制计算与所有已发布模块不变。

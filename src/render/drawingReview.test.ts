@@ -8,6 +8,11 @@ vi.mock('./textSprite', () => ({ createTextSprite: () => {
   sprite.scale.set(1.6, 1, 1);
   return sprite;
 } }));
+vi.mock('./drawingIndexSprite', () => ({ createDrawingIndexSprite: () => {
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial());
+  sprite.scale.set(1.6, 1, 1);
+  return sprite;
+} }));
 
 const reference = { up: [0, 0, 1], position: [5.022, -4.536, 4.212], target: [0, 0, 0] } satisfies Record<string, Point3>;
 const worldPoint = (point: Point3) => new THREE.Vector3(...point).addScalar(-0.5).multiplyScalar(2.65);

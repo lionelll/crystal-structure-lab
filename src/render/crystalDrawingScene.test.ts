@@ -11,6 +11,9 @@ vi.mock('./textSprite', () => ({ createTextSprite: (text: string) => {
   sprite.userData.text = text;
   return sprite;
 } }));
+vi.mock('./drawingIndexSprite', () => ({ createDrawingIndexSprite: () => (
+  new THREE.Sprite(new THREE.SpriteMaterial())
+) }));
 
 describe('drawing overlay lifecycle', () => {
   it('replaces only the drawing layer without moving the root or recreating the frame', () => {
