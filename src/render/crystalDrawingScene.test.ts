@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { createCrystalDrawing, createHexagonalDrawing, cubeCorners, type Point3 } from '../core/crystalDrawing';
 import { latticeGeometry } from '../data/latticeGeometry';
 import { cameraPreset, createAtoms, sceneStructureKey } from '../components/CrystalCanvas';
-import { createDrawingScene, disposeDrawingLayer, drawingAxisLength, drawingCameraPreset, tickDrawingScene, updateDrawingScene } from './crystalDrawingScene';
+import { createDrawingScene, disposeDrawingLayer, drawingAxisLength, drawingCameraPreset, drawingCameraReference, setDrawingCamera, tickDrawingScene, updateDrawingScene } from './crystalDrawingScene';
 import { createPackingPlaneMaterial, packingDirectionStyle } from './packingPrimitives';
 
 vi.mock('./textSprite', () => ({ createTextSprite: (text: string) => {
@@ -118,13 +118,44 @@ describe('drawing overlay lifecycle', () => {
     }
   });
 
-  it.each(['FCC', 'BCC'] as const)('matches the %s cell camera orientation', (crystal) => {
-    const reference = cameraPreset(crystal, 1, 'cell');
-    const preset = drawingCameraPreset(1.2, reference);
+  it.each(['cubic', 'hexagonal'] as const)('preserves the dedicated %s drawing camera orientation while fitting', (system) => {
+    const reference = drawingCameraReference(system);
+    const preset = drawingCameraPreset(1.2, reference, 700, system);
     const direction = (value: typeof preset) => new THREE.Vector3(...value.position).sub(new THREE.Vector3(...value.target)).normalize();
     expect(direction(preset).distanceTo(direction(reference))).toBeLessThan(1e-12);
     expect(preset.up).toEqual(reference.up);
     expect(new THREE.Vector3(...preset.position).distanceTo(new THREE.Vector3(...preset.target))).toBeLessThan(18);
+  });
+
+  it.each(['cubic', 'hexagonal'] as const)('projects the %s axes in the reference image directions', (system) => {
+    const camera = new THREE.PerspectiveCamera(45, 1.2, 0.1, 100);
+    const target = new THREE.Vector3();
+    setDrawingCamera(camera, target, new THREE.Vector2(840, 700), drawingCameraReference(system), system);
+    camera.lookAt(target);
+    camera.updateMatrixWorld();
+    const root = new THREE.Group();
+    const context = createDrawingScene(root, system);
+    root.updateMatrixWorld(true);
+    try {
+      const axes = context.axes.children.filter((object): object is THREE.ArrowHelper => object instanceof THREE.ArrowHelper);
+      const projected = axes.map((axis) => {
+        const start = axis.getWorldPosition(new THREE.Vector3()).project(camera);
+        const end = axis.localToWorld(new THREE.Vector3(0, axis.cone.position.y, 0)).project(camera);
+        return new THREE.Vector2((end.x - start.x) * 420, (end.y - start.y) * 350);
+      });
+      expect(projected[0].x).toBeLessThan(0);
+      expect(projected[0].y).toBeLessThan(0);
+      expect(projected[1].x).toBeGreaterThan(0);
+      expect(projected[1].y).toBeLessThan(0);
+      expect(Math.abs(projected[1].y / projected[1].x)).toBeLessThan(0.2);
+      const vertical = projected[projected.length - 1];
+      expect(vertical.y).toBeGreaterThan(0);
+      expect(Math.abs(vertical.x / vertical.y)).toBeLessThan(0.08);
+      if (system === 'hexagonal') {
+        expect(projected[2].x).toBeLessThan(0);
+        expect(projected[2].y).toBeGreaterThan(0);
+      }
+    } finally { disposeDrawingLayer(root); }
   });
 
   it.each([[1, 1, 0], [1, 0, 0], [-1, 1, 1]] as Point3[])('keeps direction label clear of the projected arrow %j', (...indices) => {

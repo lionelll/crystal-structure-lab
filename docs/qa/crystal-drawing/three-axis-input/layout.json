@@ -1,0 +1,88 @@
+{
+  "mobile": {
+    "canvas": {
+      "bottom": 755.1953125,
+      "height": 290,
+      "left": 8,
+      "right": 382,
+      "top": 465.1953125,
+      "width": 374,
+      "x": 8,
+      "y": 465.1953125
+    },
+    "inputs": [
+      {
+        "font": "16px",
+        "height": 36,
+        "label": "u 指数",
+        "value": "2",
+        "width": 37.25
+      },
+      {
+        "font": "16px",
+        "height": 36,
+        "label": "v 指数",
+        "value": "-1",
+        "width": 37.25
+      },
+      {
+        "font": "16px",
+        "height": 36,
+        "label": "t 指数",
+        "value": "-1",
+        "width": 37.25
+      },
+      {
+        "font": "16px",
+        "height": 36,
+        "label": "w 指数",
+        "value": "3",
+        "width": 37.25
+      },
+      {
+        "font": "16px",
+        "height": 36,
+        "label": "三轴 U 指数",
+        "value": "1",
+        "width": 54.6640625
+      },
+      {
+        "font": "16px",
+        "height": 36,
+        "label": "三轴 V 指数",
+        "value": "0",
+        "width": 54.6640625
+      },
+      {
+        "font": "16px",
+        "height": 36,
+        "label": "三轴 W 指数",
+        "value": "1",
+        "width": 54.6640625
+      }
+    ],
+    "panel": {
+      "bottom": 455.1953125,
+      "height": 341,
+      "left": 118,
+      "right": 372,
+      "top": 114.1953125,
+      "width": 254,
+      "x": 118,
+      "y": 114.1953125
+    },
+    "scrollWidth": 390,
+    "viewport": {
+      "dpr": 1,
+      "height": 844,
+      "width": 390
+    }
+  },
+  "error": {
+    "canvasHeight": 290,
+    "canvasTop": 491.1953125,
+    "error": "三个指数不能同时为 0。",
+    "panelBottom": 481.1953125
+  },
+  "consoleErrors": []
+}

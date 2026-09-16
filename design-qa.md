@@ -1,5 +1,56 @@
 # v1.2.0 晶面/晶向绘制本地验收
 
+## 2026-09-16 教学解析分行
+
+- 基线 `6d58e72a7e8d66442d59f6d1f19bec5834ace8fe`，保留 `feature/v1.2.0` 此前未提交修改。本项仅修改 `DrawingInfo` 文案结构、绘制专属样式及测试；几何、状态、渲染与已发布模块均未调整。
+- 按用户提供的四组文案，将“核心口诀/核心公式”“绘制步骤”改为独立标题，口诀、三四轴转换和公式采用独立段落；立方 3 条、六方 2 条步骤采用有序列表，编号各占一行，续行对齐正文。样式仅限绘制教学区域，保留 15px 字号与 1.9 行高。
+- 新增四组结构回归，`npm test` 295/295 通过；`npm run build -- --base=/crystal/`（含类型检查）通过。仅保留既有单 JS 包超过 500 kB 的构建提示。
+- IAB 本地 `http://127.0.0.1:5181/crystal/`，1600×900 与 390×844，DPR=1、缩放 100%。四种模式在两种视口均无段落/列表重叠、无横向溢出；切换文案正确，控制台错误为 0。证据：[立方晶面桌面](docs/qa/crystal-drawing/teaching-lines/cubic-plane-desktop.jpg)、[六方晶向桌面](docs/qa/crystal-drawing/teaching-lines/hex-direction-desktop.jpg)、[立方晶面手机](docs/qa/crystal-drawing/teaching-lines/cubic-plane-mobile.jpg)、[六方晶面手机](docs/qa/crystal-drawing/teaching-lines/hex-plane-mobile.jpg)、[八组布局检查](docs/qa/crystal-drawing/teaching-lines/layout.json)；同目录保留其余模式截图。
+- `dist/index.html` SHA-256：`83783b9b28d74f58e677ac6c78ff41fb67963c85f4a0c034f87be09e892fb9ab`。未提交、推送、合并、打 Tag 或部署。
+
+## 2026-09-16 当前信息字段精简
+
+- 本项仅修改绘制专属 `DrawingInfo` 和对应测试，立方/六方的晶面与晶向均不再显示“原点位置”“方向比例”。保留绘制类型、绘图晶胞、当前指数、相对截距或相对终点及教学解析；原点平移、方向计算和模型渲染不变。
+- 新增 8 个回归用例，覆盖两种晶系、两种模式和绘制前后状态；`npm test` 291/291 通过，`npm run build -- --base=/crystal/`（含类型检查）通过。既有单 JS 包超过 500 kB 提示仍在。
+- 本地 IAB，100% 缩放、DPR=1，桌面 1600×900 与手机 390×844 检查字段移除及保留项，控制台错误为 0。证据：[六方晶向桌面](docs/qa/crystal-drawing/info-fields/hex-direction-desktop.jpg)、[立方晶面手机](docs/qa/crystal-drawing/info-fields/cubic-plane-mobile.jpg)。
+- `dist/index.html` SHA-256：`ddc927c99bd4508c07676beedb18e0a61ea769b153a39d76be5f3ffaa426f4c4`。保留此前未提交修改；本轮未提交、推送、合并、打 Tag 或部署。
+
+## 2026-09-16 六方三轴与四轴输入
+
+- 基线 `6d58e72a7e8d66442d59f6d1f19bec5834ace8fe`，`feature/v1.2.0` 未提交修改；保留前两项尺寸、字号与默认机位调整，本项只新增绘制输入、转换函数、状态同步及测试，不改晶面/晶向几何或已发布模块。
+- 六方晶面、晶向均同时提供四轴和三轴两行输入。编辑行保留用户原文，另一行同步转换；i/t 延续只读联动。仅“绘制”或 Enter 应用结果，未完成输入、非法字符和全零保留上一幅有效图形。模式切换按最后编辑行重新换算，离开六方后重置为原立方三输入框。
+- 晶面 `(h,k,l) -> (h,k,-h-k,l)`，逆变换保留 h/k/l；不约去倍数，以保持既有截距语义。晶向 `[U,V,W] -> [2U-V,2V-U,-U-V,3W]` 后约为最简整数比；逆向 `[u-t,v-t,w]` 同样化简且保留方向符号。BigInt 中间运算避免整型溢出导致错误比例，结果仍执行安全整数范围校验。
+- 换算来源：[剑桥大学 Materials Algorithms Project](https://www.phase-trans.msm.cam.ac.uk/map/crystal/subs/notat1-b.html)（实空间与倒空间逆变换）、[Yusuke Seto 晶体学讲义](https://yseto.net/en/crystallography-e/suppl-e/suppl-10)（三轴/四轴正逆公式）。测试覆盖 342 组小整数晶向的几何同向性及往返换算。
+- `npm test` 283/283 通过；`npm run build -- --base=/crystal/` 包含类型检查并通过。保留原有测试，只扩展初始状态断言以包含新增字段。既有单 JS 包超过 500 kB 的构建提示仍在，本轮不拆包。
+- IAB，100% 缩放、DPR=1，桌面 1600×900、手机 390×844，地址 `http://127.0.0.1:5181/crystal/`。实测三轴晶向 `[101]`、四轴反向输入、负指数晶面、基面 `(001)`、模式/晶系切换、清除、非法输入、Enter 提交与刷新。控制台错误为 0，首页及本次相关 JS/TS/CSS 请求均为 200。
+- 手机六方参数区采用文档流、保持原右对齐位置和 254px 宽度，画布固定 290px 高，展开、折叠及错误提示均留 10px 间隔，无覆盖和横向溢出；桌面布局与立方布局不变。输入高 36px、字 16px；三轴输入框宽约 54.66px。画布像素检查检出晶向红色 381px、晶面蓝色 1,896px，确认非空白并正确显示。
+- 证据：[用户参考](docs/qa/crystal-drawing/three-axis-input/design-qa-three-axis-request.png)、[桌面晶面](docs/qa/crystal-drawing/three-axis-input/hex-plane-desktop.jpg)、[桌面晶向](docs/qa/crystal-drawing/three-axis-input/hex-direction-desktop.jpg)、[手机晶向](docs/qa/crystal-drawing/three-axis-input/hex-direction-mobile.jpg)、[手机晶面](docs/qa/crystal-drawing/three-axis-input/hex-plane-mobile.jpg)、[手机错误提示](docs/qa/crystal-drawing/three-axis-input/hex-error-mobile.jpg)、[布局数据](docs/qa/crystal-drawing/three-axis-input/layout.json)。
+- 构建 SHA-256：`dist/index.html` = `120c165d8bf9dac635ebdb82a692e30730740c60ca965ffb7489b46aef2097a4`；`index-DclMMdwT.js` = `28b940f4935f6152c4b8dac9168a7189a89dc56738b69a4e379ab2780f2dffb4`；`index-CmiISN4e.css` = `fe9b490ac7e7b87b00e1e38a12af09645c97341de271f0a420ac7db997e0bc33`。
+- 本轮未提交、推送、合并、打 Tag 或部署；线上版本未变化。
+
+## 2026-09-16 默认视角与六方轴长
+
+- 仅调整绘制模块的相机接入、渲染和测试；既有晶胞模型预设及晶面/晶向几何计算未修改。保留上一轮 1.4 倍相机倍率和固定屏幕尺寸的指数标签。
+- 按用户两张参考图设置绘制专属默认机位：立方方位角 18°、六方方位角 39°，仰角均为 18°。立方 X 朝左下、Y 朝右、Z 朝上；六方 a1 朝左下、a2 朝右、a3 朝左上、c 朝上。进入、切换晶系及主动重置采用该预设，窗口变化仍保留用户视角。
+- c 轴长度保持不变，a1/a2/a3 缩短为 c/1.633；轴标签随端点更新。保留原取景距离下限，避免短轴触发模型反向放大，并补充低仰角下 c 标签的取景边界。
+- `npm test`：255/255 通过；`npm run build -- --base=/crystal/`（含 TypeScript 检查）通过。新增朝向投影、1.633 长度比及四种视口下六方 72 个旋转角度的完整标签边界断言。未删除原有几何或连续性测试。
+- 本地 IAB、1600×900 与 390×844 验证晶系切换、晶向绘制、清除、重置和旋转；无横向页面溢出，控制台错误为 0。桌面画布检出 1,080 个红色箭头像素，旋转前后 12,851 个显著变化像素，确认模型非空且动画运行。
+- 截图：[立方桌面](docs/qa/crystal-drawing/default-view/cubic-desktop.jpg)、[六方桌面](docs/qa/crystal-drawing/default-view/hexagonal-desktop.jpg)、[立方手机](docs/qa/crystal-drawing/default-view/cubic-mobile.jpg)、[六方手机](docs/qa/crystal-drawing/default-view/hexagonal-mobile-folded.jpg)。手机沿用原可折叠悬浮参数面板，展开时仍可能遮住局部轴线；折叠后核验完整模型，本轮不调整面板布局。
+- 预览：`http://127.0.0.1:5181/crystal/`。未提交、推送、合并、打 Tag 或部署；保留已有 JS 单包超过 500 kB 的构建提示。
+
+## 2026-09-16 模型缩小与指数标签恢复
+
+- 基线为 `6d58e72a7e8d66442d59f6d1f19bec5834ace8fe`；本次是 `feature/v1.2.0` 上的未提交调整，仅修改绘制专属渲染与测试。
+- 立方、六方默认相机倍率由 2 改为 1.4，同视角下晶胞投影宽高均为基线的 70%。保持几何、默认朝向和输入计算不变。
+- 指数标签使用包含相机 zoom 的有效视场换算，恢复放大前的 36 CSS px 精灵画布高度（包含纹理留白，不是字形高度）；晶向避让距离同步按有效视场计算。坐标轴文字继续随模型倍率变化，负指数上划线绘制未修改。
+- `drawingSize.test.ts` 按新需求将旧 200% 目标更新为精确 70% 比例，覆盖两种晶系及四种画布尺寸；补充两种晶系、两种绘制模式在缩放与相机远近变化下的固定标签尺寸。248 项测试及 `/crystal/` 生产构建通过，构建包含 TypeScript 检查；原有旋转连续性与窗口往返测试保留。
+- 本地预览 `http://127.0.0.1:5181/crystal/`，IAB 浏览器、DPR=1、100% 页面缩放；检查 1600×900 桌面和 390×844 手机。立方/六方晶向、立方负指数晶面、六方晶面切换成功；页面无横向溢出，浏览器控制台错误为 0。
+- [桌面对照（左为基线，右为调整后）](docs/qa/crystal-drawing/size-reduction/desktop-comparison.png)、[手机立方晶向](docs/qa/crystal-drawing/size-reduction/mobile-cubic-direction.png)、[手机六方晶向](docs/qa/crystal-drawing/size-reduction/mobile-hex-direction.png)、[检查数据](docs/qa/crystal-drawing/size-reduction/measurements.json)。IAB 全页基线截图以半尺寸拼接，已将有效页面区域归一到 CSS 像素；对照中的基线细线清晰度受原始采样影响，精确缩放比例以投影测试为准。
+- 四个桌面/手机晶向截图的画布区域均检出红色箭头像素；自动旋转前后模型区域有 12,449 个显著变化像素，确认画布非空白且动画仍运行。
+- 本轮未提交、推送、合并或部署；测试站仍为上述基线版本。保留已有 JS 单包超过 500 kB 的构建提示。
+
+以下为历史验收记录。
+
 ## 2026-09-14 绘制信息与负指数标注修复（最新）
 
 - 仅修改 `feature/v1.2.0` 的晶面/晶向绘制：当前信息移除“绘图晶胞”，并删除该模块整块“教学解析”；其他模块的右栏内容不变。

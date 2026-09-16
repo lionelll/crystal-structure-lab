@@ -7,7 +7,8 @@ import { createDrawingIndexSprite } from './drawingIndexSprite';
 
 const scale = latticeGeometry.FCC.worldA;
 export const drawingAxisLength = 1.5;
-export const drawingModelMagnification = 2;
+export const hexagonalDrawingAxisRatio = 1.633;
+export const drawingModelMagnification = 1.4;
 const labelHeight = 36;
 const axisLabelOffset = 0.12;
 const worldPoint = (point: Point3, crystalSystem: DrawingCrystalSystem) => (
@@ -16,7 +17,13 @@ const worldPoint = (point: Point3, crystalSystem: DrawingCrystalSystem) => (
     : new THREE.Vector3(...point).multiplyScalar(scale)
 );
 
-function scaleDrawingLabel(label: THREE.Sprite) {
+function drawingAxisExtent(crystalSystem: DrawingCrystalSystem, axis: number) {
+  return crystalSystem === 'hexagonal' && axis < 3
+    ? drawingAxisLength / hexagonalDrawingAxisRatio
+    : drawingAxisLength;
+}
+
+function scaleDrawingLabel(label: THREE.Sprite, fixedScreenSize = false) {
   const ratio = label.scale.x / label.scale.y;
   const position = new THREE.Vector3();
   const viewport = new THREE.Vector2();
@@ -24,7 +31,8 @@ function scaleDrawingLabel(label: THREE.Sprite) {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
     label.getWorldPosition(position).applyMatrix4(camera.matrixWorldInverse);
     renderer.getSize(viewport);
-    const height = 2 * Math.abs(position.z) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * labelHeight / viewport.y;
+    const fov = fixedScreenSize ? camera.getEffectiveFOV() : camera.fov;
+    const height = 2 * Math.abs(position.z) * Math.tan(THREE.MathUtils.degToRad(fov / 2)) * labelHeight / viewport.y;
     label.scale.set(height * ratio, height, 1);
     label.updateMatrixWorld();
   };
@@ -74,7 +82,7 @@ function offsetDirectionLabel(label: THREE.Sprite, start: THREE.Vector3, end: TH
     normal.copy(previousNormal);
     const position = anchor.clone().applyMatrix4(label.parent.matrixWorld);
     const depth = Math.abs(position.clone().applyMatrix4(camera.matrixWorldInverse).z);
-    const perPixel = 2 * depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / viewport.y;
+    const perPixel = 2 * depth * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV() / 2)) / viewport.y;
     const ratio = label.scale.x / label.scale.y;
     const gap = 8 + 18 * (Math.abs(normal.x) * ratio + Math.abs(normal.y));
     right.setFromMatrixColumn(camera.matrixWorld, 0);
@@ -125,12 +133,13 @@ function updateAxes(context: DrawingScene, origin: Point3) {
         { label: 'c', direction: new THREE.Vector3(0, 0, 1), color: '#4385ff' },
       ];
   axes.forEach(({ label, direction, color }, axis) => {
-    const arrow = new THREE.ArrowHelper(direction, start, scale * drawingAxisLength, color, 0.21, 0.11);
+    const length = drawingAxisExtent(context.crystalSystem, axis);
+    const arrow = new THREE.ArrowHelper(direction, start, scale * length, color, 0.21, 0.11);
     arrow.line.geometry = arrow.line.geometry.clone();
     arrow.cone.geometry = arrow.cone.geometry.clone();
     context.axes.add(arrow);
     const axisLabel = drawingLabel(label, color);
-    axisLabel.position.copy(start).addScaledVector(direction, scale * (drawingAxisLength + axisLabelOffset));
+    axisLabel.position.copy(start).addScaledVector(direction, scale * (length + axisLabelOffset));
     context.axes.add(axisLabel);
     if (context.crystalSystem === 'cubic' && origin[axis] === 1) {
       const end = start.clone().addScaledVector(direction, -scale);
@@ -194,7 +203,7 @@ export function updateDrawingScene(context: DrawingScene, drawing: CrystalDrawin
     addPackingDirectionVector(context.overlay, start, end);
     labelPosition = start.clone().lerp(end, 0.65);
   }
-  const label = scaleDrawingLabel(createDrawingIndexSprite(drawing.mode, drawing.indices));
+  const label = scaleDrawingLabel(createDrawingIndexSprite(drawing.mode, drawing.indices), true);
   label.name = 'drawing-index-label';
   label.position.copy(labelPosition).add(new THREE.Vector3(0, 0, 0.32));
   if (drawing.mode === 'direction') offsetDirectionLabel(label, worldPoint(origin, context.crystalSystem), worldPoint(drawing.end, context.crystalSystem));
@@ -210,6 +219,16 @@ export function tickDrawingScene(context: DrawingScene, now: number) {
 }
 
 type DrawingCameraReference = { up: Point3; position: Point3; target: Point3 };
+
+export function drawingCameraReference(crystalSystem: DrawingCrystalSystem): DrawingCameraReference {
+  const azimuth = THREE.MathUtils.degToRad(crystalSystem === 'cubic' ? 18 : 39);
+  const elevation = THREE.MathUtils.degToRad(18);
+  return {
+    up: [0, 0, 1],
+    position: [Math.cos(azimuth) * Math.cos(elevation), Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation)],
+    target: [0, 0, 0],
+  };
+}
 
 export function drawingCameraPreset(aspect: number, reference: DrawingCameraReference, viewportHeight = 700, crystalSystem: DrawingCrystalSystem = 'cubic') {
   const target = new THREE.Vector3(...reference.target);
@@ -237,6 +256,7 @@ export function drawingCameraPreset(aspect: number, reference: DrawingCameraRefe
           new THREE.Vector3(-0.5, Math.sqrt(3) / 2, 0),
           new THREE.Vector3(-0.5, -Math.sqrt(3) / 2, 0),
           new THREE.Vector3(0, 0, 1),
+          // Preserve the previous framing footprint when shortening basal axes.
         ].map((direction) => worldPoint([0, 0, -0.5], crystalSystem).addScaledVector(direction, scale * (drawingAxisLength + axisLabelOffset))),
       ];
   // A point's full Z orbit has this exact support, without angle sampling gaps.
@@ -248,10 +268,17 @@ export function drawingCameraPreset(aspect: number, reference: DrawingCameraRefe
   const center = tangent * (support(upper) - target.dot(upper) - support(lower) + target.dot(lower)) / 2;
   // Keep the same target at every viewport size so resize can preserve user pan.
   target.addScaledVector(up, center);
-  const distance = Math.max(...[
+  let distance = Math.max(...[
     constraint(right, tanH, -1), constraint(right, tanH, 1),
     constraint(up, tanV, -1), constraint(up, tanV, 1),
   ].map((normal) => support(normal) - target.dot(normal))) + 0.05;
+  if (crystalSystem === 'hexagonal') {
+    // The default view targets the cell center; include the zoomed c-axis label.
+    const extent = worldPoint([0, 0, -0.5], crystalSystem)
+      .add(new THREE.Vector3(0, 0, scale * (drawingAxisLength + axisLabelOffset)));
+    const slope = tangent * (1 - labelHeight * drawingModelMagnification / viewportHeight) / drawingModelMagnification;
+    distance = Math.max(distance, extent.dot(constraint(up, Math.max(slope, 0.01), 1)) + 0.05);
+  }
   return { up: [...reference.up] as Point3, target: target.toArray() as Point3, position: target.clone().addScaledVector(direction, distance).toArray() as Point3 };
 }
 

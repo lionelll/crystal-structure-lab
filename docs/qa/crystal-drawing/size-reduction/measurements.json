@@ -1,0 +1,32 @@
+{
+  "baseline": "6d58e72a7e8d66442d59f6d1f19bec5834ace8fe",
+  "viewport": [
+    1600,
+    900
+  ],
+  "normalization": "IAB full-page reference content at 0.5 scale normalized to CSS pixels; after uses viewport capture",
+  "projectedSizeRatio": 0.7,
+  "ratioEvidence": "drawingSize.test.ts: both crystal systems, four viewport sizes",
+  "indexSpriteHeightCssPx": 36,
+  "unitTests": 248,
+  "consoleErrors": [],
+  "nonblank": [
+    {
+      "file": "desktop-after.png",
+      "coloredArrowPixels": 1405
+    },
+    {
+      "file": "desktop-hex-direction.png",
+      "coloredArrowPixels": 846
+    },
+    {
+      "file": "mobile-cubic-direction.png",
+      "coloredArrowPixels": 218
+    },
+    {
+      "file": "mobile-hex-direction.png",
+      "coloredArrowPixels": 250
+    }
+  ],
+  "rotationChangedPixels": 12449
+}

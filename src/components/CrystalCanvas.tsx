@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { crystals, resolveCrystal, type CrystalType, type DisplaySettings, type ModuleId } from '../data/crystals';
 import type { CrystalDrawing, DrawingCrystalSystem } from '../core/crystalDrawing';
-import { createDrawingScene, resizeDrawingCamera, setDrawingCamera, tickDrawingScene, updateDrawingScene, type DrawingScene } from '../render/crystalDrawingScene';
+import { createDrawingScene, drawingCameraReference, resizeDrawingCamera, setDrawingCamera, tickDrawingScene, updateDrawingScene, type DrawingScene } from '../render/crystalDrawingScene';
 import { addPackingDirectionVector, createPackingPlaneMaterial, packingDirectionColor } from '../render/packingPrimitives';
 import { createTextSprite } from '../render/textSprite';
 export { packingDirectionStyle, packingPlaneColor } from '../render/packingPrimitives';
@@ -334,8 +334,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       renderer.setSize(mount.clientWidth, mount.clientHeight);
       if (moduleRef.current === 'drawing') {
         const system = drawingSystemRef.current;
-        const referenceCrystal = system === 'hexagonal' ? 'HCP' : (crystalRef.current === 'HCP' ? 'FCC' : crystalRef.current);
-        const ratio = resizeDrawingCamera(camera, controls.target, new THREE.Vector2(mount.clientWidth, mount.clientHeight), cameraPreset(referenceCrystal, 1, 'cell'), system);
+        const ratio = resizeDrawingCamera(camera, controls.target, new THREE.Vector2(mount.clientWidth, mount.clientHeight), drawingCameraReference(system), system);
         controls.minDistance *= ratio;
         controls.maxDistance *= ratio;
       }
@@ -1391,8 +1390,7 @@ function setDefaultCamera(camera: THREE.PerspectiveCamera, controls: OrbitContro
   if (activeModule === 'drawing') {
     const height = controls.domElement?.clientHeight || 700;
     const width = controls.domElement?.clientWidth || camera.aspect * height;
-    const referenceCrystal = drawingSystem === 'hexagonal' ? 'HCP' : (crystal === 'HCP' ? 'FCC' : crystal);
-    setDrawingCamera(camera, controls.target, new THREE.Vector2(width, height), cameraPreset(referenceCrystal, 1, 'cell'), drawingSystem);
+    setDrawingCamera(camera, controls.target, new THREE.Vector2(width, height), drawingCameraReference(drawingSystem), drawingSystem);
     controls.minDistance = 1.6;
     controls.maxDistance = 50;
     controls.update();

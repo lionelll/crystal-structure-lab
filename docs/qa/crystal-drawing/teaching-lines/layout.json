@@ -1,0 +1,818 @@
+[
+  {
+    "name": "cubic-plane-desktop",
+    "blocks": [
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 528.25,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 499.75,
+          "width": 334,
+          "x": 1231,
+          "y": 499.75
+        },
+        "tag": "H3",
+        "text": "【核心口诀】"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 591.25,
+          "height": 57,
+          "left": 1231,
+          "right": 1565,
+          "top": 534.25,
+          "width": 334,
+          "x": 1231,
+          "y": 534.25
+        },
+        "tag": "P",
+        "text": "定原点→建坐标系→求截距→取倒数→化整数比→加圆括号 (hkl)"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 637.75,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 609.25,
+          "width": 334,
+          "x": 1231,
+          "y": 609.25
+        },
+        "tag": "H3",
+        "text": "【绘制步骤】"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 700.75,
+          "height": 57,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 643.75,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 643.75
+        },
+        "tag": "LI",
+        "text": "建立右手坐标系，注意原点绝不能选在待画晶面上，以防止出现零截距；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 737.25,
+          "height": 28.5,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 708.75,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 708.75
+        },
+        "tag": "LI",
+        "text": "确定晶面在 x,y,z 轴的截距（平行截距为∞）；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 802.25,
+          "height": 57,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 745.25,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 745.25
+        },
+        "tag": "LI",
+        "text": "取各轴截距的倒数，化简为最小互质整数比 (hkl)。"
+      }
+    ],
+    "dpr": 1,
+    "height": 900,
+    "overflow": false,
+    "width": 1600,
+    "zoom": 1
+  },
+  {
+    "name": "cubic-direction-desktop",
+    "blocks": [
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 493.5,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 465,
+          "width": 334,
+          "x": 1231,
+          "y": 465
+        },
+        "tag": "H3",
+        "text": "【核心口诀】"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 556.5,
+          "height": 57,
+          "left": 1231,
+          "right": 1565,
+          "top": 499.5,
+          "width": 334,
+          "x": 1231,
+          "y": 499.5
+        },
+        "tag": "P",
+        "text": "定原点→建坐标系→求分量→化整数比→加方括号[uvw]"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 603,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 574.5,
+          "width": 334,
+          "x": 1231,
+          "y": 574.5
+        },
+        "tag": "H3",
+        "text": "【绘制步骤】"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 637.5,
+          "height": 28.5,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 609,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 609
+        },
+        "tag": "LI",
+        "text": "以晶胞顶点为原点建立右手坐标系；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 702.5,
+          "height": 57,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 645.5,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 645.5
+        },
+        "tag": "LI",
+        "text": "取矢量端点相对于原点的坐标分量（坐标差法）；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 767.5,
+          "height": 57,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 710.5,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 710.5
+        },
+        "tag": "LI",
+        "text": "化为最小互质整数比即为 [uvw]，负指数将原点沿该轴正向平移1个单位。"
+      }
+    ],
+    "dpr": 1,
+    "height": 900,
+    "overflow": false,
+    "width": 1600,
+    "zoom": 1
+  },
+  {
+    "name": "hex-direction-desktop",
+    "blocks": [
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 493.5,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 465,
+          "width": 334,
+          "x": 1231,
+          "y": 465
+        },
+        "tag": "H3",
+        "text": "【核心公式】"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 528,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 499.5,
+          "width": 334,
+          "x": 1231,
+          "y": 499.5
+        },
+        "tag": "P",
+        "text": "三轴 [UVW]→ 四轴 [uvtw]"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 556.5,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 528,
+          "width": 334,
+          "x": 1231,
+          "y": 528
+        },
+        "tag": "P",
+        "text": "u=(2U-V)/3,  v=(2V-U)/3,  t=-(u+v),  w=W"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 603,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 574.5,
+          "width": 334,
+          "x": 1231,
+          "y": 574.5
+        },
+        "tag": "H3",
+        "text": "【绘制步骤】"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 666,
+          "height": 57,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 609,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 609
+        },
+        "tag": "LI",
+        "text": "先按三轴系 (a1,a2,c) 标出矢量坐标并化简为三轴指数 [UVW]；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 731,
+          "height": 57,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 674,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 674
+        },
+        "tag": "LI",
+        "text": "代入转化公式计算四轴指数 [uvtw]，其中 t=-(u+v)。"
+      }
+    ],
+    "dpr": 1,
+    "height": 900,
+    "overflow": false,
+    "width": 1600,
+    "zoom": 1
+  },
+  {
+    "name": "hex-plane-desktop",
+    "blocks": [
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 493.5,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 465,
+          "width": 334,
+          "x": 1231,
+          "y": 465
+        },
+        "tag": "H3",
+        "text": "【核心公式】"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 528,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 499.5,
+          "width": 334,
+          "x": 1231,
+          "y": 499.5
+        },
+        "tag": "P",
+        "text": "三轴 (hkl)→ 四轴 (hkil)，满足恒等式：i=-(h+k)"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 574.5,
+          "height": 28.5,
+          "left": 1231,
+          "right": 1565,
+          "top": 546,
+          "width": 334,
+          "x": 1231,
+          "y": 546
+        },
+        "tag": "H3",
+        "text": "【绘制步骤】"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 637.5,
+          "height": 57,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 580.5,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 580.5
+        },
+        "tag": "LI",
+        "text": "原点不在此面上，先求出在 a1,a2,c 三轴上的截距并倒数化简，得到三轴指数 (hkl)；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 702.5,
+          "height": 57,
+          "left": 1253.5,
+          "right": 1565,
+          "top": 645.5,
+          "width": 311.5,
+          "x": 1253.5,
+          "y": 645.5
+        },
+        "tag": "LI",
+        "text": "直接根据 i=-(h+k) 补齐第三个基面指数，写成四轴指数 (hkil)。"
+      }
+    ],
+    "dpr": 1,
+    "height": 900,
+    "overflow": false,
+    "width": 1600,
+    "zoom": 1
+  },
+  {
+    "name": "hex-plane-mobile",
+    "blocks": [
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 605.1953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 576.6953125,
+          "width": 326,
+          "x": 32,
+          "y": 576.6953125
+        },
+        "tag": "H3",
+        "text": "【核心公式】"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 639.6953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 611.1953125,
+          "width": 326,
+          "x": 32,
+          "y": 611.1953125
+        },
+        "tag": "P",
+        "text": "三轴 (hkl)→ 四轴 (hkil)，满足恒等式：i=-(h+k)"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 686.1953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 657.6953125,
+          "width": 326,
+          "x": 32,
+          "y": 657.6953125
+        },
+        "tag": "H3",
+        "text": "【绘制步骤】"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 749.1953125,
+          "height": 57,
+          "left": 54.5,
+          "right": 358,
+          "top": 692.1953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 692.1953125
+        },
+        "tag": "LI",
+        "text": "原点不在此面上，先求出在 a1,a2,c 三轴上的截距并倒数化简，得到三轴指数 (hkl)；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 814.1953125,
+          "height": 57,
+          "left": 54.5,
+          "right": 358,
+          "top": 757.1953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 757.1953125
+        },
+        "tag": "LI",
+        "text": "直接根据 i=-(h+k) 补齐第三个基面指数，写成四轴指数 (hkil)。"
+      }
+    ],
+    "dpr": 1,
+    "height": 844,
+    "overflow": false,
+    "width": 390,
+    "zoom": 1
+  },
+  {
+    "name": "hex-direction-mobile",
+    "blocks": [
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 576.6953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 548.1953125,
+          "width": 326,
+          "x": 32,
+          "y": 548.1953125
+        },
+        "tag": "H3",
+        "text": "【核心公式】"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 611.1953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 582.6953125,
+          "width": 326,
+          "x": 32,
+          "y": 582.6953125
+        },
+        "tag": "P",
+        "text": "三轴 [UVW]→ 四轴 [uvtw]"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 639.6953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 611.1953125,
+          "width": 326,
+          "x": 32,
+          "y": 611.1953125
+        },
+        "tag": "P",
+        "text": "u=(2U-V)/3,  v=(2V-U)/3,  t=-(u+v),  w=W"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 686.1953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 657.6953125,
+          "width": 326,
+          "x": 32,
+          "y": 657.6953125
+        },
+        "tag": "H3",
+        "text": "【绘制步骤】"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 749.1953125,
+          "height": 57,
+          "left": 54.5,
+          "right": 358,
+          "top": 692.1953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 692.1953125
+        },
+        "tag": "LI",
+        "text": "先按三轴系 (a1,a2,c) 标出矢量坐标并化简为三轴指数 [UVW]；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 814.1953125,
+          "height": 57,
+          "left": 54.5,
+          "right": 358,
+          "top": 757.1953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 757.1953125
+        },
+        "tag": "LI",
+        "text": "代入转化公式计算四轴指数 [uvtw]，其中 t=-(u+v)。"
+      }
+    ],
+    "dpr": 1,
+    "height": 844,
+    "overflow": false,
+    "width": 390,
+    "zoom": 1
+  },
+  {
+    "name": "cubic-direction-mobile",
+    "blocks": [
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 540.1953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 511.6953125,
+          "width": 326,
+          "x": 32,
+          "y": 511.6953125
+        },
+        "tag": "H3",
+        "text": "【核心口诀】"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 603.1953125,
+          "height": 57,
+          "left": 32,
+          "right": 358,
+          "top": 546.1953125,
+          "width": 326,
+          "x": 32,
+          "y": 546.1953125
+        },
+        "tag": "P",
+        "text": "定原点→建坐标系→求分量→化整数比→加方括号[uvw]"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 649.6953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 621.1953125,
+          "width": 326,
+          "x": 32,
+          "y": 621.1953125
+        },
+        "tag": "H3",
+        "text": "【绘制步骤】"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 684.1953125,
+          "height": 28.5,
+          "left": 54.5,
+          "right": 358,
+          "top": 655.6953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 655.6953125
+        },
+        "tag": "LI",
+        "text": "以晶胞顶点为原点建立右手坐标系；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 749.1953125,
+          "height": 57,
+          "left": 54.5,
+          "right": 358,
+          "top": 692.1953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 692.1953125
+        },
+        "tag": "LI",
+        "text": "取矢量端点相对于原点的坐标分量（坐标差法）；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 814.1953125,
+          "height": 57,
+          "left": 54.5,
+          "right": 358,
+          "top": 757.1953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 757.1953125
+        },
+        "tag": "LI",
+        "text": "化为最小互质整数比即为 [uvw]，负指数将原点沿该轴正向平移1个单位。"
+      }
+    ],
+    "dpr": 1,
+    "height": 844,
+    "overflow": false,
+    "width": 390,
+    "zoom": 1
+  },
+  {
+    "name": "cubic-plane-mobile",
+    "blocks": [
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 540.1953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 511.6953125,
+          "width": 326,
+          "x": 32,
+          "y": 511.6953125
+        },
+        "tag": "H3",
+        "text": "【核心口诀】"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 603.1953125,
+          "height": 57,
+          "left": 32,
+          "right": 358,
+          "top": 546.1953125,
+          "width": 326,
+          "x": 32,
+          "y": 546.1953125
+        },
+        "tag": "P",
+        "text": "定原点→建坐标系→求截距→取倒数→化整数比→加圆括号 (hkl)"
+      },
+      {
+        "display": "block",
+        "padding": "0px",
+        "rect": {
+          "bottom": 649.6953125,
+          "height": 28.5,
+          "left": 32,
+          "right": 358,
+          "top": 621.1953125,
+          "width": 326,
+          "x": 32,
+          "y": 621.1953125
+        },
+        "tag": "H3",
+        "text": "【绘制步骤】"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 712.6953125,
+          "height": 57,
+          "left": 54.5,
+          "right": 358,
+          "top": 655.6953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 655.6953125
+        },
+        "tag": "LI",
+        "text": "建立右手坐标系，注意原点绝不能选在待画晶面上，以防止出现零截距；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 749.1953125,
+          "height": 28.5,
+          "left": 54.5,
+          "right": 358,
+          "top": 720.6953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 720.6953125
+        },
+        "tag": "LI",
+        "text": "确定晶面在 x,y,z 轴的截距（平行截距为∞）；"
+      },
+      {
+        "display": "list-item",
+        "padding": "0px",
+        "rect": {
+          "bottom": 814.1953125,
+          "height": 57,
+          "left": 54.5,
+          "right": 358,
+          "top": 757.1953125,
+          "width": 303.5,
+          "x": 54.5,
+          "y": 757.1953125
+        },
+        "tag": "LI",
+        "text": "取各轴截距的倒数，化简为最小互质整数比 (hkl)。"
+      }
+    ],
+    "dpr": 1,
+    "height": 844,
+    "overflow": false,
+    "width": 390,
+    "zoom": 1
+  }
+]

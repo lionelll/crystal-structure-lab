@@ -10,6 +10,9 @@
 .drawing-systems input, .drawing-modes input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .drawing-systems label:focus-within, .drawing-modes label:focus-within { outline: 2px solid #7dd0ff; outline-offset: 1px; }
 .drawing-indices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.drawing-index-group { min-width: 0; padding: 0; margin: 0; border: 0; }
+.drawing-index-group legend { padding: 0 0 5px; color: #bdcddd; font-size: 12px; line-height: 16px; }
+.drawing-three-axis { margin-top: 10px; }
 .drawing-indices.is-hexagonal { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
 .drawing-indices label { display: grid; grid-template-columns: 12px minmax(0, 1fr); align-items: center; gap: 4px; color: #bdcddd; font-size: 14px; }
 .drawing-indices input { width: 100%; min-width: 0; height: 36px; border: 1px solid #526377; border-radius: 4px; padding: 0 5px; background: #070f19; color: #fff; font-size: 16px; text-align: center; }
@@ -28,11 +31,21 @@
 .drawing-index-value { display: inline-flex; align-items: baseline; white-space: pre; }
 .drawing-index-token { position: relative; display: inline-block; }
 .drawing-index-token.is-negative::before { content: ''; position: absolute; top: .05em; left: .04em; right: .04em; height: 2px; background: currentColor; }
-.drawing-teaching p { white-space: pre-line; }
+.drawing-teaching { padding: 22px 24px 0; color: #d8e4f2; font-size: 15px; line-height: 1.9; overflow-wrap: anywhere; }
+.drawing-teaching h3 { margin: 0 0 6px; font-size: inherit; line-height: inherit; font-weight: 700; }
+.drawing-teaching h3:not(:first-child) { margin-top: 18px; }
+.drawing-info .drawing-teaching p { margin: 0; padding: 0; white-space: pre-line; }
+.drawing-teaching ol { margin: 0; padding-left: 1.5em; }
+.drawing-teaching li + li { margin-top: 8px; }
 .stage-panel:has(.drawing-viewport) { background: #05070c; }
 .drawing-viewport .three-mount { position: absolute; top: 68px; height: calc(100% - 68px); }
 @media (max-width: 820px) {
   .drawing-controls { top: 76px; right: 10px; width: 254px; }
   .drawing-viewport .three-mount { top: 268px; height: calc(100% - 268px); }
   .drawing-commands button { min-height: 40px; }
+  .stage-column:has(.drawing-controls.is-hexagonal) { grid-template-rows: auto; }
+  .stage-panel:has(.drawing-controls.is-hexagonal) { display: grid; grid-template-rows: auto 290px; padding-top: 76px; }
+  .stage-panel > .drawing-controls.is-hexagonal { position: static; grid-row: 1; justify-self: end; margin: 0 10px 10px; }
+  .stage-panel:has(.drawing-controls.is-hexagonal) > .drawing-viewport { grid-row: 2; min-height: 0; }
+  .stage-panel:has(.drawing-controls.is-hexagonal) .three-mount { top: 0; height: 100%; }
 }
