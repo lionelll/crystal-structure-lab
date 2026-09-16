@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCrystalDrawing, drawingIndexTokens, drawingOrigin, fractionText, interceptText, parseIndices, type Point3 } from './crystalDrawing';
+import { createCrystalDrawing, createHexagonalDrawing, drawingIndexTokens, drawingOrigin, fractionText, hexagonalPlaneCoordinate, hexagonalPlaneLevel, hexagonalPlaneVertices, interceptText, parseHexIndices, parseIndices, type Point3, type Point4 } from './crystalDrawing';
 
 describe('crystal drawing geometry', () => {
   it.each<[Point3, number]>([
@@ -71,5 +71,64 @@ describe('crystal drawing geometry', () => {
     ]);
     expect(fractionText(-2, 4)).toBe('-1/2');
     expect(fractionText(0, 4)).toBe('0');
+  });
+
+  it('enforces the Miller-Bravais basal constraint', () => {
+    expect(parseHexIndices(['1', '0', '-1', '0'])).toEqual([1, 0, -1, 0]);
+    expect(() => parseHexIndices(['1', '0', '0', '0'])).toThrow('必须满足');
+    expect(() => parseHexIndices(['0', '0', '0', '0'])).toThrow('不能同时');
+  });
+
+  it.each([
+    [[0, 0, 0, 1], 6],
+    [[1, 0, -1, 0], 4],
+    [[1, 0, -1, 1], 4],
+  ] as const)('clips hexagonal plane %j to the prism', (indices, minimumVertices) => {
+    const point4 = [...indices] as Point4;
+    const level = hexagonalPlaneLevel(point4);
+    const vertices = hexagonalPlaneVertices(point4);
+    expect(vertices.length).toBeGreaterThanOrEqual(minimumVertices);
+    for (const [x, y, z] of vertices) {
+      expect(Math.abs(z)).toBeLessThanOrEqual(0.5 + 1e-10);
+      expect(Math.hypot(x, y)).toBeLessThanOrEqual(0.5 + 1e-10);
+      expect(hexagonalPlaneCoordinate(point4, [x, y, z])).toBeCloseTo(level, 12);
+    }
+  });
+
+  it('places (0001) on the top basal lattice plane instead of a centre slice', () => {
+    const indices: Point4 = [0, 0, 0, 1];
+    const drawing = createHexagonalDrawing('plane', indices);
+    if (drawing.mode !== 'plane') throw new Error('wrong mode');
+    expect(drawing.planeLevel).toBe(1);
+    expect(drawing.vertices).toHaveLength(6);
+    expect(drawing.vertices.every((point) => Math.abs(point[2] - 0.5) < 1e-12)).toBe(true);
+    expect(interceptText(indices[3], drawing.planeLevel)).toBe('1a');
+  });
+
+  it('places (10-10) on a vertical prism side and keeps its displayed intercepts consistent', () => {
+    const indices: Point4 = [1, 0, -1, 0];
+    const drawing = createHexagonalDrawing('plane', indices);
+    if (drawing.mode !== 'plane') throw new Error('wrong mode');
+    expect(drawing.vertices).toHaveLength(4);
+    expect(drawing.vertices.every((point) => Math.abs(hexagonalPlaneCoordinate(indices, point) - 1) < 1e-12)).toBe(true);
+    expect(interceptText(indices[0], drawing.planeLevel)).toBe('1a');
+    expect(interceptText(indices[2], drawing.planeLevel)).toBe('-1a');
+  });
+
+  it('uses an intersecting negative lattice level for a negative basal normal', () => {
+    const drawing = createHexagonalDrawing('plane', [0, 0, 0, -1]);
+    if (drawing.mode !== 'plane') throw new Error('wrong mode');
+    expect(drawing.planeLevel).toBe(-1);
+    expect(drawing.vertices.every((point) => Math.abs(point[2] - 0.5) < 1e-12)).toBe(true);
+    expect(interceptText(-1, drawing.planeLevel)).toBe('1a');
+  });
+
+  it('draws four-index hexagonal directions inside the prism', () => {
+    const drawing = createHexagonalDrawing('direction', [2, -1, -1, 0]);
+    if (drawing.mode !== 'direction') throw new Error('wrong mode');
+    expect(drawing.crystalSystem).toBe('hexagonal');
+    expect(drawing.end[0]).toBeGreaterThan(drawing.origin[0]);
+    expect(drawing.end[1]).toBeCloseTo(drawing.origin[1], 12);
+    expect(Math.hypot(drawing.end[0], drawing.end[1])).toBeLessThanOrEqual(0.5 + 1e-10);
   });
 });

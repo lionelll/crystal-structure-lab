@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { drawingIndexTokens, type DrawingMode, type Point3 } from '../core/crystalDrawing';
+import { drawingIndexTokens, type DrawingIndices, type DrawingMode } from '../core/crystalDrawing';
 
 interface IndexRun {
   text: string;
@@ -10,7 +10,7 @@ interface IndexRun {
 
 export function layoutDrawingIndex(
   mode: DrawingMode,
-  indices: Point3,
+  indices: DrawingIndices,
   measure: (text: string) => number,
 ) {
   const open = mode === 'plane' ? '(' : '[';
@@ -33,7 +33,7 @@ export function layoutDrawingIndex(
   return { runs, width: x };
 }
 
-export function createDrawingIndexSprite(mode: DrawingMode, indices: Point3, color = '#ffffff', size = 40) {
+export function createDrawingIndexSprite(mode: DrawingMode, indices: DrawingIndices, color = '#ffffff', size = 40) {
   const canvas = document.createElement('canvas');
   const measure = canvas.getContext('2d')!;
   const font = `700 ${size}px Inter, system-ui, sans-serif`;

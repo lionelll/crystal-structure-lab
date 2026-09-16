@@ -28,12 +28,8 @@ describe('metal module visibility', () => {
     for (const item of modules) expect(markup).toContain(`<span>${item.title}</span>`);
   });
 
-  it('omits only the drawing module for HCP', () => {
+  it('offers the drawing module for HCP now that hexagonal drawing is supported', () => {
     const markup = renderPanel('HCP');
-    for (const item of modules) {
-      const label = `<span>${item.title}</span>`;
-      if (item.id === 'drawing') expect(markup).not.toContain(label);
-      else expect(markup).toContain(label);
-    }
+    for (const item of modules) expect(markup).toContain(`<span>${item.title}</span>`);
   });
 });

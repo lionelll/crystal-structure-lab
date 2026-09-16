@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { cubeCorners, cubeEdges, type CrystalDrawing, type Point3 } from '../core/crystalDrawing';
+import { cubeCorners, cubeEdges, hexPrismCorners, hexPrismEdges, type CrystalDrawing, type DrawingCrystalSystem, type Point3 } from '../core/crystalDrawing';
 import { latticeGeometry } from '../data/latticeGeometry';
 import { addPackingDirectionVector, createPackingPlaneMaterial } from './packingPrimitives';
 import { createTextSprite } from './textSprite';
@@ -7,9 +7,14 @@ import { createDrawingIndexSprite } from './drawingIndexSprite';
 
 const scale = latticeGeometry.FCC.worldA;
 export const drawingAxisLength = 1.5;
+export const drawingModelMagnification = 2;
 const labelHeight = 36;
 const axisLabelOffset = 0.12;
-const worldPoint = (point: Point3) => new THREE.Vector3(...point).addScalar(-0.5).multiplyScalar(scale);
+const worldPoint = (point: Point3, crystalSystem: DrawingCrystalSystem) => (
+  crystalSystem === 'cubic'
+    ? new THREE.Vector3(...point).addScalar(-0.5).multiplyScalar(scale)
+    : new THREE.Vector3(...point).multiplyScalar(scale)
+);
 
 function scaleDrawingLabel(label: THREE.Sprite) {
   const ratio = label.scale.x / label.scale.y;
@@ -82,6 +87,7 @@ function offsetDirectionLabel(label: THREE.Sprite, start: THREE.Vector3, end: TH
 }
 
 export interface DrawingScene {
+  crystalSystem: DrawingCrystalSystem;
   frame: THREE.LineSegments;
   axes: THREE.Group;
   overlay: THREE.Group;
@@ -105,24 +111,34 @@ export function disposeDrawingLayer(group: THREE.Group) {
 
 function updateAxes(context: DrawingScene, origin: Point3) {
   disposeDrawingLayer(context.axes);
-  const start = worldPoint(origin);
-  const colors = ['#ff554f', '#3bd56f', '#4385ff'];
-  for (let axis = 0; axis < 3; axis++) {
-    const direction = new THREE.Vector3().setComponent(axis, 1);
-    const arrow = new THREE.ArrowHelper(direction, start, scale * drawingAxisLength, colors[axis], 0.21, 0.11);
+  const start = worldPoint(origin, context.crystalSystem);
+  const axes = context.crystalSystem === 'cubic'
+    ? [
+        { label: 'X', direction: new THREE.Vector3(1, 0, 0), color: '#ff554f' },
+        { label: 'Y', direction: new THREE.Vector3(0, 1, 0), color: '#3bd56f' },
+        { label: 'Z', direction: new THREE.Vector3(0, 0, 1), color: '#4385ff' },
+      ]
+    : [
+        { label: 'a₁', direction: new THREE.Vector3(1, 0, 0), color: '#ff554f' },
+        { label: 'a₂', direction: new THREE.Vector3(-0.5, Math.sqrt(3) / 2, 0), color: '#3bd56f' },
+        { label: 'a₃', direction: new THREE.Vector3(-0.5, -Math.sqrt(3) / 2, 0), color: '#ffa43a' },
+        { label: 'c', direction: new THREE.Vector3(0, 0, 1), color: '#4385ff' },
+      ];
+  axes.forEach(({ label, direction, color }, axis) => {
+    const arrow = new THREE.ArrowHelper(direction, start, scale * drawingAxisLength, color, 0.21, 0.11);
     arrow.line.geometry = arrow.line.geometry.clone();
     arrow.cone.geometry = arrow.cone.geometry.clone();
     context.axes.add(arrow);
-    const label = drawingLabel(['X', 'Y', 'Z'][axis], colors[axis]);
-    label.position.copy(start).addScaledVector(direction, scale * (drawingAxisLength + axisLabelOffset));
-    context.axes.add(label);
-    if (origin[axis] === 1) {
+    const axisLabel = drawingLabel(label, color);
+    axisLabel.position.copy(start).addScaledVector(direction, scale * (drawingAxisLength + axisLabelOffset));
+    context.axes.add(axisLabel);
+    if (context.crystalSystem === 'cubic' && origin[axis] === 1) {
       const end = start.clone().addScaledVector(direction, -scale);
-      const negativeAxis = new THREE.Line(new THREE.BufferGeometry().setFromPoints([start, end]), new THREE.LineDashedMaterial({ color: colors[axis], dashSize: 0.09, gapSize: 0.07, transparent: true, opacity: 0.7, fog: false }));
+      const negativeAxis = new THREE.Line(new THREE.BufferGeometry().setFromPoints([start, end]), new THREE.LineDashedMaterial({ color, dashSize: 0.09, gapSize: 0.07, transparent: true, opacity: 0.7, fog: false }));
       negativeAxis.computeLineDistances();
       context.axes.add(negativeAxis);
     }
-  }
+  });
   const label = drawingLabel('O', '#fde047', 30);
   label.position.copy(start).add(new THREE.Vector3(-0.13, -0.13, -0.18));
   context.axes.add(label);
@@ -130,9 +146,11 @@ function updateAxes(context: DrawingScene, origin: Point3) {
   context.origin = [...origin];
 }
 
-export function createDrawingScene(root: THREE.Group): DrawingScene {
+export function createDrawingScene(root: THREE.Group, crystalSystem: DrawingCrystalSystem = 'cubic'): DrawingScene {
+  const corners = crystalSystem === 'cubic' ? cubeCorners : hexPrismCorners;
+  const edges = crystalSystem === 'cubic' ? cubeEdges : hexPrismEdges;
   const frame = new THREE.LineSegments(
-    new THREE.BufferGeometry().setFromPoints(cubeEdges.flatMap(([a, b]) => [worldPoint(cubeCorners[a]), worldPoint(cubeCorners[b])])),
+    new THREE.BufferGeometry().setFromPoints(edges.flatMap(([a, b]) => [worldPoint(corners[a], crystalSystem), worldPoint(corners[b], crystalSystem)])),
     new THREE.LineBasicMaterial({ color: '#eef5ff', transparent: true, opacity: 0.72, fog: false }),
   );
   frame.name = 'drawing-cell-frame';
@@ -142,14 +160,15 @@ export function createDrawingScene(root: THREE.Group): DrawingScene {
   const marker = new THREE.Mesh(new THREE.SphereGeometry(0.055, 20, 16), new THREE.MeshBasicMaterial({ color: '#fde047', fog: false, depthTest: false }));
   marker.renderOrder = 30;
   root.add(frame, axes, overlay, marker);
-  const context: DrawingScene = { frame, axes, overlay, marker, origin: [0, 0, 0], pulseStart: null };
-  updateAxes(context, [0, 0, 0]);
+  const defaultOrigin: Point3 = crystalSystem === 'cubic' ? [0, 0, 0] : [0, 0, -0.5];
+  const context: DrawingScene = { crystalSystem, frame, axes, overlay, marker, origin: defaultOrigin, pulseStart: null };
+  updateAxes(context, defaultOrigin);
   return context;
 }
 
 export function updateDrawingScene(context: DrawingScene, drawing: CrystalDrawing | null, now = performance.now()) {
   disposeDrawingLayer(context.overlay);
-  const origin: Point3 = drawing?.origin ?? [0, 0, 0];
+  const origin: Point3 = drawing?.origin ?? (context.crystalSystem === 'cubic' ? [0, 0, 0] : [0, 0, -0.5]);
   const moved = origin.some((value, i) => value !== context.origin[i]);
   if (moved) updateAxes(context, origin);
   context.pulseStart = moved && drawing !== null ? now : null;
@@ -158,7 +177,7 @@ export function updateDrawingScene(context: DrawingScene, drawing: CrystalDrawin
 
   let labelPosition: THREE.Vector3;
   if (drawing.mode === 'plane') {
-    const vertices = drawing.vertices.map(worldPoint);
+    const vertices = drawing.vertices.map((point) => worldPoint(point, context.crystalSystem));
     const geometry = new THREE.BufferGeometry().setFromPoints(vertices);
     const indices: number[] = [];
     for (let i = 1; i < vertices.length - 1; i++) indices.push(0, i, i + 1);
@@ -170,15 +189,15 @@ export function updateDrawingScene(context: DrawingScene, drawing: CrystalDrawin
     context.overlay.add(plane);
     labelPosition = vertices.reduce((sum, point) => sum.add(point), new THREE.Vector3()).divideScalar(vertices.length);
   } else {
-    const start = worldPoint(origin);
-    const end = worldPoint(drawing.end);
+    const start = worldPoint(origin, context.crystalSystem);
+    const end = worldPoint(drawing.end, context.crystalSystem);
     addPackingDirectionVector(context.overlay, start, end);
     labelPosition = start.clone().lerp(end, 0.65);
   }
   const label = scaleDrawingLabel(createDrawingIndexSprite(drawing.mode, drawing.indices));
   label.name = 'drawing-index-label';
   label.position.copy(labelPosition).add(new THREE.Vector3(0, 0, 0.32));
-  if (drawing.mode === 'direction') offsetDirectionLabel(label, worldPoint(origin), worldPoint(drawing.end));
+  if (drawing.mode === 'direction') offsetDirectionLabel(label, worldPoint(origin, context.crystalSystem), worldPoint(drawing.end, context.crystalSystem));
   label.renderOrder = 40;
   context.overlay.add(label);
 }
@@ -192,7 +211,7 @@ export function tickDrawingScene(context: DrawingScene, now: number) {
 
 type DrawingCameraReference = { up: Point3; position: Point3; target: Point3 };
 
-export function drawingCameraPreset(aspect: number, reference: DrawingCameraReference, viewportHeight = 700) {
+export function drawingCameraPreset(aspect: number, reference: DrawingCameraReference, viewportHeight = 700, crystalSystem: DrawingCrystalSystem = 'cubic') {
   const target = new THREE.Vector3(...reference.target);
   const direction = new THREE.Vector3(...reference.position).sub(target).normalize();
   const right = new THREE.Vector3(...reference.up).cross(direction).normalize();
@@ -201,15 +220,25 @@ export function drawingCameraPreset(aspect: number, reference: DrawingCameraRefe
   const viewportWidth = aspect * viewportHeight;
   const tanV = tangent * Math.max(0.1, 1 - labelHeight / viewportHeight);
   const tanH = tangent * aspect * Math.max(0.1, 1 - labelHeight * 2 / viewportWidth);
-  const bounds = cubeCorners.flatMap((origin) => [
-    worldPoint(origin),
-    worldPoint(origin).add(new THREE.Vector3(-0.13, -0.13, -0.18)),
-    ...[0, 1, 2].map((axis) => {
-      const end: Point3 = [...origin];
-      end[axis] += drawingAxisLength + axisLabelOffset;
-      return worldPoint(end);
-    }),
-  ]);
+  const bounds = crystalSystem === 'cubic'
+    ? cubeCorners.flatMap((origin) => [
+        worldPoint(origin, crystalSystem),
+        worldPoint(origin, crystalSystem).add(new THREE.Vector3(-0.13, -0.13, -0.18)),
+        ...[0, 1, 2].map((axis) => {
+          const end: Point3 = [...origin];
+          end[axis] += drawingAxisLength + axisLabelOffset;
+          return worldPoint(end, crystalSystem);
+        }),
+      ])
+    : [
+        ...hexPrismCorners.map((point) => worldPoint(point, crystalSystem)),
+        ...[
+          new THREE.Vector3(1, 0, 0),
+          new THREE.Vector3(-0.5, Math.sqrt(3) / 2, 0),
+          new THREE.Vector3(-0.5, -Math.sqrt(3) / 2, 0),
+          new THREE.Vector3(0, 0, 1),
+        ].map((direction) => worldPoint([0, 0, -0.5], crystalSystem).addScaledVector(direction, scale * (drawingAxisLength + axisLabelOffset))),
+      ];
   // A point's full Z orbit has this exact support, without angle sampling gaps.
   const support = (normal: THREE.Vector3) => Math.max(...bounds.map((point) =>
     Math.hypot(point.x, point.y) * Math.hypot(normal.x, normal.y) + point.z * normal.z,
@@ -226,19 +255,23 @@ export function drawingCameraPreset(aspect: number, reference: DrawingCameraRefe
   return { up: [...reference.up] as Point3, target: target.toArray() as Point3, position: target.clone().addScaledVector(direction, distance).toArray() as Point3 };
 }
 
-export function setDrawingCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, viewport: THREE.Vector2, reference: DrawingCameraReference) {
-  const preset = drawingCameraPreset(viewport.x / viewport.y, reference, viewport.y);
+export function setDrawingCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, viewport: THREE.Vector2, reference: DrawingCameraReference, crystalSystem: DrawingCrystalSystem = 'cubic') {
+  const preset = drawingCameraPreset(viewport.x / viewport.y, reference, viewport.y, crystalSystem);
+  const fittedTarget = new THREE.Vector3(...preset.target);
+  const direction = new THREE.Vector3(...preset.position).sub(fittedTarget).normalize();
+  const distance = new THREE.Vector3(...preset.position).distanceTo(fittedTarget);
   camera.aspect = viewport.x / viewport.y;
   camera.up.set(...preset.up);
-  camera.position.set(...preset.position);
-  target.set(...preset.target);
+  target.set(0, 0, 0);
+  camera.position.copy(target).addScaledVector(direction, distance);
+  camera.zoom = drawingModelMagnification;
   camera.userData.drawingBaseDistance = camera.position.distanceTo(target);
   camera.updateProjectionMatrix();
 }
 
-export function resizeDrawingCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, viewport: THREE.Vector2, reference: DrawingCameraReference) {
+export function resizeDrawingCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, viewport: THREE.Vector2, reference: DrawingCameraReference, crystalSystem: DrawingCrystalSystem = 'cubic') {
   if (viewport.x <= 0 || viewport.y <= 0) return 1;
-  const preset = drawingCameraPreset(viewport.x / viewport.y, reference, viewport.y);
+  const preset = drawingCameraPreset(viewport.x / viewport.y, reference, viewport.y, crystalSystem);
   const distance = new THREE.Vector3(...preset.position).distanceTo(new THREE.Vector3(...preset.target));
   const previousDistance = camera.userData.drawingBaseDistance as number | undefined;
   const ratio = previousDistance ? distance / previousDistance : 1;

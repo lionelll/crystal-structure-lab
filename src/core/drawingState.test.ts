@@ -3,7 +3,7 @@ import { drawingReducer, initialDrawingState } from './drawingState';
 
 describe('drawing interaction state', () => {
   it('enters paused with an empty board and 111 draft', () => {
-    expect(initialDrawingState()).toEqual({ mode: 'plane', draft: ['1', '1', '1'], applied: null, error: null, autoRotate: false });
+    expect(initialDrawingState()).toEqual({ crystalSystem: 'cubic', mode: 'plane', draft: ['1', '1', '1'], applied: null, error: null, autoRotate: false });
   });
   it('typing does not replace the committed drawing; invalid generation preserves it', () => {
     const generated = drawingReducer(initialDrawingState(), { type: 'draw' });
@@ -38,5 +38,14 @@ describe('drawing interaction state', () => {
     }
     expect(state.applied?.indices).toEqual([-1, 1, 1]);
     expect(state.applied?.origin).toEqual([1, 0, 0]);
+  });
+  it('switches to a constrained four-index hexagonal draft and generates hexagonal geometry', () => {
+    let state = drawingReducer(initialDrawingState(), { type: 'system', crystalSystem: 'hexagonal' });
+    expect(state.draft).toEqual(['1', '0', '-1', '0']);
+    state = drawingReducer(state, { type: 'edit', index: 1, value: '1' });
+    expect(state.draft).toEqual(['1', '1', '-2', '0']);
+    state = drawingReducer(state, { type: 'draw' });
+    expect(state.applied?.crystalSystem).toBe('hexagonal');
+    expect(state.applied?.indices).toEqual([1, 1, -2, 0]);
   });
 });

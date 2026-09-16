@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { createCrystalDrawing, cubeCorners, type Point3 } from '../core/crystalDrawing';
+import { createCrystalDrawing, createHexagonalDrawing, cubeCorners, type Point3 } from '../core/crystalDrawing';
 import { latticeGeometry } from '../data/latticeGeometry';
 import { cameraPreset, createAtoms, sceneStructureKey } from '../components/CrystalCanvas';
 import { createDrawingScene, disposeDrawingLayer, drawingAxisLength, drawingCameraPreset, tickDrawingScene, updateDrawingScene } from './crystalDrawingScene';
@@ -79,6 +79,18 @@ describe('drawing overlay lifecycle', () => {
     expect(shaft.geometry.parameters.radius).toBe(packingDirectionStyle.shaftRadius);
     expect(shaft.material.color.getHexString()).toBe('ef4444');
     expected.dispose();
+    disposeDrawingLayer(root);
+  });
+
+  it('renders hexagonal planes and directions in the same replaceable overlay', () => {
+    const root = new THREE.Group();
+    const context = createDrawingScene(root, 'hexagonal');
+    updateDrawingScene(context, createHexagonalDrawing('plane', [1, 0, -1, 0]));
+    expect(context.overlay.getObjectByName('drawn-plane')).toBeTruthy();
+    expect(context.overlay.getObjectByName('drawing-index-label')).toBeTruthy();
+    updateDrawingScene(context, createHexagonalDrawing('direction', [2, -1, -1, 0]));
+    expect(context.overlay.getObjectByName('drawn-plane')).toBeFalsy();
+    expect(context.overlay.getObjectByName('drawing-index-label')).toBeTruthy();
     disposeDrawingLayer(root);
   });
 

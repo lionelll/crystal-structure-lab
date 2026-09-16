@@ -54,7 +54,7 @@ export default function App() {
   const handleCrystalChange = (next: CrystalType) => {
     if (!isCrystalType(next)) return;
     if (next !== crystal) dispatchDrawing({ type: 'reset' });
-    if (next === 'HCP' && activeModule === 'drawing') setActiveModule('cell');
+    if (activeModule === 'drawing') dispatchDrawing({ type: 'system', crystalSystem: next === 'HCP' ? 'hexagonal' : 'cubic' });
     setCrystal(next);
   };
 
@@ -103,8 +103,8 @@ export default function App() {
           onIonicCrystalChange={handleIonicCrystalChange}
           onModuleChange={(id) => {
             if (family === 'metal') {
-              if (id === 'drawing' && crystal === 'HCP') return;
               if (id !== activeModule) dispatchDrawing({ type: 'reset' });
+              if (id === 'drawing') dispatchDrawing({ type: 'system', crystalSystem: crystal === 'HCP' ? 'hexagonal' : 'cubic' });
               setActiveModule(id as ModuleId);
             }
             else setIonicModule(id as IonicModuleId);
@@ -128,6 +128,7 @@ export default function App() {
                   activeModule={activeModule}
                   settings={effectiveSettings}
                   drawing={drawingState.applied}
+                  drawingSystem={drawingState.crystalSystem}
                 />
               ) : (
                 <IonicCrystalCanvas

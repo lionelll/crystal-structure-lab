@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { cubeCorners, type Point3 } from '../core/crystalDrawing';
-import { createDrawingScene, disposeDrawingLayer, drawingAxisLength, drawingCameraPreset } from './crystalDrawingScene';
+import { createDrawingScene, disposeDrawingLayer, drawingAxisLength, drawingCameraPreset, drawingModelMagnification, setDrawingCamera } from './crystalDrawingScene';
 
 vi.mock('./textSprite', () => ({ createTextSprite: () => {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial());
@@ -27,13 +27,7 @@ describe('drawing size adjustment', () => {
     } finally { disposeDrawingLayer(root); }
   });
 
-  // Original 1.8a bounds plus approved targets after the follow-up padding reduction.
-  it.each([
-    [374, 290, 69.0590842409101, 75.84786894673535, 81.7327621308477, 89.16630277184649],
-    [364, 550, 78.51769418610661, 87.16035339432896, 92.88975430300287, 102.67644488845637],
-    [840, 700, 184.70615677602052, 202.30541221939228, 212.86242884650807, 231.6496720815918],
-    [1260, 700, 184.7061567760205, 202.30541221939228, 212.8624288465081, 231.6496720815918],
-  ])('matches the enlarged framing target at %ix%i with the same orientation', (width, height, oldWidth, oldHeight, expectedWidth, expectedHeight) => {
+  it.each([[374, 290], [364, 550], [840, 700], [1260, 700]])('renders the default cell at 200%% of the fitted size at %ix%i', (width, height) => {
     const preset = drawingCameraPreset(width / height, reference, height);
     const target = new THREE.Vector3(...preset.target);
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
@@ -41,16 +35,35 @@ describe('drawing size adjustment', () => {
     camera.up.set(...preset.up);
     camera.lookAt(target);
     camera.updateMatrixWorld();
-    const direction = camera.position.clone().sub(target).normalize();
-    const referenceDirection = new THREE.Vector3(...reference.position).sub(new THREE.Vector3(...reference.target)).normalize();
-    expect(direction.distanceTo(referenceDirection)).toBeLessThan(1e-12);
-    expect(preset.up).toEqual(reference.up);
-    const points = cubeCorners.map((point) => new THREE.Vector3(...point).addScalar(-0.5).multiplyScalar(2.65).project(camera));
-    const projectedWidth = (Math.max(...points.map((point) => point.x)) - Math.min(...points.map((point) => point.x))) * width / 2;
-    const projectedHeight = (Math.max(...points.map((point) => point.y)) - Math.min(...points.map((point) => point.y))) * height / 2;
-    expect(projectedWidth / oldWidth).toBeGreaterThanOrEqual(1.12);
-    expect(projectedHeight / oldHeight).toBeGreaterThanOrEqual(1.12);
-    expect(projectedWidth).toBeCloseTo(expectedWidth, 8);
-    expect(projectedHeight).toBeCloseTo(expectedHeight, 8);
+    const projectedSize = () => {
+      camera.updateProjectionMatrix();
+      const points = cubeCorners.map((point) => new THREE.Vector3(...point).addScalar(-0.5).multiplyScalar(2.65).project(camera));
+      return new THREE.Vector2(
+        (Math.max(...points.map((point) => point.x)) - Math.min(...points.map((point) => point.x))) * width / 2,
+        (Math.max(...points.map((point) => point.y)) - Math.min(...points.map((point) => point.y))) * height / 2,
+      );
+    };
+    camera.zoom = 1;
+    const fitted = projectedSize();
+    setDrawingCamera(camera, target, new THREE.Vector2(width, height), reference);
+    camera.lookAt(target);
+    camera.updateMatrixWorld();
+    const enlarged = projectedSize();
+    expect(drawingModelMagnification).toBe(2);
+    expect(camera.zoom).toBe(2);
+    expect(enlarged.x / fitted.x).toBeGreaterThanOrEqual(1.98);
+    expect(enlarged.x / fitted.x).toBeLessThanOrEqual(2.02);
+    expect(enlarged.y / fitted.y).toBeGreaterThanOrEqual(1.98);
+    expect(enlarged.y / fitted.y).toBeLessThanOrEqual(2.02);
+  });
+
+  it('builds a simple hexagonal prism with four crystallographic axes', () => {
+    const root = new THREE.Group();
+    const context = createDrawingScene(root, 'hexagonal');
+    try {
+      expect(context.frame.geometry.getAttribute('position').count).toBe(36);
+      expect(context.axes.children.filter((object) => object instanceof THREE.ArrowHelper)).toHaveLength(4);
+      expect(context.origin).toEqual([0, 0, -0.5]);
+    } finally { disposeDrawingLayer(root); }
   });
 });

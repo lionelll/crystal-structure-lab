@@ -27,4 +27,12 @@ describe('drawing index label layout', () => {
     ]);
     expect(layout.width).toBe(80);
   });
+
+  it('lays out four-index hexagonal labels without widening an adjacent overbar', () => {
+    const layout = layoutDrawingIndex('plane', [1, 0, -1, 0], measure);
+    expect(layout.runs.filter((run) => run.negative)).toEqual([
+      { text: '1', negative: true, x: 30, width: 10 },
+    ]);
+    expect(layout.width).toBe(60);
+  });
 });

@@ -52,9 +52,7 @@ export function ControlPanel({
   onSettingsChange,
 }: Props) {
   const patch = (partial: Partial<DisplaySettings>) => onSettingsChange({ ...settings, ...partial });
-  const activeModules = family === 'metal'
-    ? modules.filter((item) => crystal !== 'HCP' || item.id !== 'drawing')
-    : ionicModules;
+  const activeModules = family === 'metal' ? modules : ionicModules;
   const [crystalSelectionExpanded, setCrystalSelectionExpanded] = useState(defaultPanelExpanded);
   const [modulesExpanded, setModulesExpanded] = useState(defaultPanelExpanded);
   const collapseOnMobile = (collapse: () => void) => {
