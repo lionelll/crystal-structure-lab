@@ -28,12 +28,15 @@
 .drawing-constraint { margin: 7px 0 0; color: #8fb3d5; font-size: 12px; text-align: center; }
 .drawing-info-line { display: block; padding: 2px 0; }
 .drawing-info .info-grid { grid-template-columns: 108px minmax(0, 1fr); }
+.drawing-info .info-grid .drawing-intercepts { display: block; }
 .drawing-index-value { display: inline-flex; align-items: baseline; white-space: pre; }
 .drawing-index-token { position: relative; display: inline-block; }
 .drawing-index-token.is-negative::before { content: ''; position: absolute; top: .05em; left: .04em; right: .04em; height: 2px; background: currentColor; }
 .drawing-teaching { padding: 22px 24px 0; color: #d8e4f2; font-size: 15px; line-height: 1.9; overflow-wrap: anywhere; }
 .drawing-teaching h3 { margin: 0 0 6px; font-size: inherit; line-height: inherit; font-weight: 700; }
 .drawing-teaching h3:not(:first-child) { margin-top: 18px; }
+.drawing-teaching-method + .drawing-teaching-method { margin-top: 12px; }
+.drawing-teaching-method h4 { margin: 0 0 6px; font-size: inherit; line-height: inherit; font-weight: 700; }
 .drawing-info .drawing-teaching p { margin: 0; padding: 0; white-space: pre-line; }
 .drawing-teaching ol { margin: 0; padding-left: 1.5em; }
 .drawing-teaching li + li { margin-top: 8px; }
@@ -48,4 +51,10 @@
   .stage-panel > .drawing-controls.is-hexagonal { position: static; grid-row: 1; justify-self: end; margin: 0 10px 10px; }
   .stage-panel:has(.drawing-controls.is-hexagonal) > .drawing-viewport { grid-row: 2; min-height: 0; }
   .stage-panel:has(.drawing-controls.is-hexagonal) .three-mount { top: 0; height: 100%; }
+}
+.drawing-plane-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
 }

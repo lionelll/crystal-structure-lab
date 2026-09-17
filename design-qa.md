@@ -1,5 +1,40 @@
 # v1.2.0 晶面/晶向绘制本地验收
 
+## 2026-09-17 六方教学与实际截面一致性修复
+
+- 基线仍为 `97bd34e3bb919b456a59b6a9103e6e4d791decce`，保留此前未提交内容。用户授权修正自查问题后，六方文案不再照搬立方逐轴平移规则：晶面以底面中心为原点；晶向基面负分量反向合成，w 为负时从顶面中心出发。立方文案、相机与已发布模块不变。
+- 区分基准晶面截距 `1/index` 与实际展示层截距 `m/index`。当已绘制六方晶面的层级不是 1 时，相对截距下方显示动态说明；说明跟随 applied 数据，而非尚未绘制的输入草稿。清除、晶系与模式切换后不残留。
+- 新增测试发现 `(1,0,-1,-1)` 等合法指数的 +1 层只接触棱，旧判断误认为可形成晶面。仅加固六方层级选择：内部截面或非零面积支撑面才有效，否则尝试 -1 层。顶面 basal 与正常 +1 层保持不变。
+- 新增 15 项一致性回归：负 c 整数/分数截距、负 w 原点、动态说明状态、退化棱；遍历 h/k/l 在 -3 到 3 的 342 组非零指数，验证截面面积非零且每个顶点满足实际层级方程。原有测试保留，文案精确断言同步到本轮纠错文本。323/323 测试、类型检查、`/crystal/` 构建与 `git diff --check` 通过。
+- 本地 IAB 桌面及 390×844 手机验证 `(000-1)`、`(000-2)`、`(10-1-1)`、`[10-1-1]`，确认模型非空、截距与说明匹配、手机无横向溢出。说明置于截距下方，未挤压轴名；控制台错误为 0。证据：[负 c 桌面](docs/qa/crystal-drawing/hex-teaching-consistency/negative-basal-desktop.jpg)、[混合负指数桌面](docs/qa/crystal-drawing/hex-teaching-consistency/mixed-negative-desktop.jpg)、[负 c 手机](docs/qa/crystal-drawing/hex-teaching-consistency/negative-basal-mobile.jpg)、[负 w 桌面](docs/qa/crystal-drawing/hex-teaching-consistency/negative-direction-desktop.jpg)、[手机教学说明](docs/qa/crystal-drawing/hex-teaching-consistency/negative-direction-mobile-notes.jpg)。
+- 晶面指数及平行面概念参考 [Cambridge DoITPoMS: Miller indices](https://www.doitpoms.ac.uk/tlplib/miller_indices/printall.php)；固定底面原点与优先 +1、候补 -1 层是本绘制器的展示约定，不是一般晶体学强制规则。
+- `dist/index.html` SHA-256：`60e0e228bdac0c4082338c056bcfd88346a84eec7225d9dbabdc4b5798b2fa24`。已知构建提示仍为单 JS 包超过 500 kB。本轮未提交、推送、合并、打 Tag 或部署。
+
+## 2026-09-17 补齐其余三组教学文案
+
+- 基线 `97bd34e3bb919b456a59b6a9103e6e4d791decce`，继续在 `feature/v1.2.0` 保留本日未提交修改。文案来源为用户本次提供的立方晶面、六方晶向、六方晶面三段内容；原样配置，只有立方晶面末尾重复句号 `。。` 归一为 `。`。上一项立方晶向文案及截距格式保持不变，未调整绘制几何、状态、相机或已发布模块。
+- 三组均按“作图技巧 / 作图步骤 / 注意事项”独立分段。晶面使用独立编号列表；六方晶向的“方法一 / 方法二”使用二级小标题与独立段落，注意事项为单段。新增样式仅作用于 `.drawing-teaching-method`，维持原有 15px 字号和 1.9 行高。
+- 新增 6 组绘制前后全文回归，并按新文案更新四模式的标题、段落、列表精确断言；308/308 测试通过，`npm run build -- --base=/crystal/`（含类型检查）通过。保留既有单 JS 包超过 500 kB 提示。
+- 本地 IAB `http://127.0.0.1:5181/crystal/`，1600×900 桌面（DPR=2）与 390×844 手机（DPR=1），100% 缩放。三模式切换、绘制、刷新通过；两端无横向溢出，长文案及公式正常换行并可滚动阅读，控制台错误为 0。
+- 证据：[立方晶面桌面](docs/qa/crystal-drawing/drawing-guidance/cubic-plane-desktop.jpg)、[六方晶面桌面](docs/qa/crystal-drawing/drawing-guidance/hex-plane-desktop.jpg)、[六方晶向桌面](docs/qa/crystal-drawing/drawing-guidance/hex-direction-desktop.jpg)、[立方晶面手机](docs/qa/crystal-drawing/drawing-guidance/cubic-plane-mobile.jpg)、[六方晶面手机](docs/qa/crystal-drawing/drawing-guidance/hex-plane-mobile.jpg)、[六方晶向手机](docs/qa/crystal-drawing/drawing-guidance/hex-direction-mobile.jpg)。
+- `dist/index.html` SHA-256：`64512fa6f58df0481f75811c2612526b0ef1a157df84920bfaac3573887fc361`。本轮未提交、推送、合并、打 Tag 或部署。
+
+## 2026-09-17 立方晶向教学文案
+
+- 来源仍为 `feature/v1.2.0` 基线 `97bd34e3bb919b456a59b6a9103e6e4d791decce` 上的未提交修改，保留本日截距去后缀调整。用户本次提供一段文案，仅替换立方晶向教学解析；立方晶面、六方晶面与六方晶向原文保持不变，绘制计算和已发布模块未修改。
+- 按原文显示“作图技巧：”“作图步骤：”“注意事项：”，技巧独立成段，步骤及注意事项分别使用两条有序列表，各自从 1 编号；沿用原字号、行高、标题和列表间距，不修改 CSS。
+- 新增绘制前后完整文案回归，更新旧文案对应的精确期望；其他三模式仍断言原标题、段落及列表结构，不出现新增注意事项。`npm test` 302/302 通过，`npm run build -- --base=/crystal/`（含类型检查）通过；仍有既有单 JS 包超过 500 kB 提示。
+- IAB 本地 `http://127.0.0.1:5181/crystal/`，桌面 1600×900（DPR=2）、手机 390×844（DPR=1），缩放 100%。两种视口无横向溢出；桌面右栏沿用滚动容器，可阅读最后一条注意事项；手机段落、编号自然换行，无遮挡。绘制、模式切换与清除后教学文案匹配，控制台错误为 0。
+- 证据：[桌面](docs/qa/crystal-drawing/cubic-direction-guidance/desktop.jpg)、[桌面注意事项](docs/qa/crystal-drawing/cubic-direction-guidance/desktop-notes.jpg)、[手机](docs/qa/crystal-drawing/cubic-direction-guidance/mobile.jpg)。`dist/index.html` SHA-256：`49ace083a6eaa23de1095a19e1e0b7d58c409db707bca455d2aa05fb8cc25bc4`。未提交、推送、合并、打 Tag 或部署。
+
+## 2026-09-17 相对截距移除单位后缀
+
+- 来源：`feature/v1.2.0`，基线 `97bd34e3bb919b456a59b6a9103e6e4d791decce` 上的未提交修改。仅调整绘制专属 `interceptText`：有限截距直接显示数字或分数，不再追加 `a`；保留 `X/Y/Z`、`a₁/a₂/a₃/c` 轴名及 `∞（平行）`。几何、状态、相机、教学解析和已发布模块不变。
+- 新增 5 组信息栏精确输出回归，覆盖两晶系、正负整数、分数、平行轴及六方负层级；原有几何断言保留，仅按新需求更新单位后缀期望。`npm test` 300/300 通过，`npm run build -- --base=/crystal/`（含类型检查）通过；既有单 JS 包超过 500 kB 提示仍在。
+- 本地 IAB `http://127.0.0.1:5181/crystal/`，桌面 1600×900、手机 390×844，DPR=1、缩放 100%。立方 `(1,-2,0)` 显示 `X：1 / Y：-1/2 / Z：∞（平行）`；六方 `(1,0,-1,0)` 显示 `a₁：1 / a₂：∞（平行） / a₃：-1 / c：∞（平行）`。切换、绘制与刷新通过，手机无横向溢出，控制台错误为 0。
+- 证据：[立方桌面](docs/qa/crystal-drawing/intercept-values/cubic-desktop.jpg)、[六方桌面](docs/qa/crystal-drawing/intercept-values/hexagonal-desktop.jpg)、[立方手机](docs/qa/crystal-drawing/intercept-values/cubic-mobile.jpg)、[六方手机](docs/qa/crystal-drawing/intercept-values/hexagonal-mobile.jpg)。本项仅变更文字，无几何或布局调整。
+- `dist/index.html` SHA-256：`b9e564f29d4e0be2563f2ed3059b85c36ba9c243121643f8450b38bd7ca1c5b9`。未提交、推送、合并、打 Tag 或部署。
+
 ## 2026-09-16 教学解析分行
 
 - 基线 `6d58e72a7e8d66442d59f6d1f19bec5834ace8fe`，保留 `feature/v1.2.0` 此前未提交修改。本项仅修改 `DrawingInfo` 文案结构、绘制专属样式及测试；几何、状态、渲染与已发布模块均未调整。

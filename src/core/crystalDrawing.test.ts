@@ -21,8 +21,8 @@ describe('crystal drawing geometry', () => {
     if (result.mode !== 'plane') throw new Error('wrong mode');
     expect(result.vertices).toContainEqual([0.5, 0, 0]);
     expect(result.vertices).toContainEqual([0, 0.5, 1]);
-    expect(interceptText(2)).toBe('1/2a');
-    expect(interceptText(-3)).toBe('-1/3a');
+    expect(interceptText(2)).toBe('1/2');
+    expect(interceptText(-3)).toBe('-1/3');
     expect(interceptText(0)).toBe('∞（平行）');
   });
 
@@ -102,7 +102,7 @@ describe('crystal drawing geometry', () => {
     expect(drawing.planeLevel).toBe(1);
     expect(drawing.vertices).toHaveLength(6);
     expect(drawing.vertices.every((point) => Math.abs(point[2] - 0.5) < 1e-12)).toBe(true);
-    expect(interceptText(indices[3], drawing.planeLevel)).toBe('1a');
+    expect(interceptText(indices[3], drawing.planeLevel)).toBe('1');
   });
 
   it('places (10-10) on a vertical prism side and keeps its displayed intercepts consistent', () => {
@@ -111,8 +111,8 @@ describe('crystal drawing geometry', () => {
     if (drawing.mode !== 'plane') throw new Error('wrong mode');
     expect(drawing.vertices).toHaveLength(4);
     expect(drawing.vertices.every((point) => Math.abs(hexagonalPlaneCoordinate(indices, point) - 1) < 1e-12)).toBe(true);
-    expect(interceptText(indices[0], drawing.planeLevel)).toBe('1a');
-    expect(interceptText(indices[2], drawing.planeLevel)).toBe('-1a');
+    expect(interceptText(indices[0], drawing.planeLevel)).toBe('1');
+    expect(interceptText(indices[2], drawing.planeLevel)).toBe('-1');
   });
 
   it('uses an intersecting negative lattice level for a negative basal normal', () => {
@@ -120,7 +120,7 @@ describe('crystal drawing geometry', () => {
     if (drawing.mode !== 'plane') throw new Error('wrong mode');
     expect(drawing.planeLevel).toBe(-1);
     expect(drawing.vertices.every((point) => Math.abs(point[2] - 0.5) < 1e-12)).toBe(true);
-    expect(interceptText(-1, drawing.planeLevel)).toBe('1a');
+    expect(interceptText(-1, drawing.planeLevel)).toBe('1');
   });
 
   it('draws four-index hexagonal directions inside the prism', () => {

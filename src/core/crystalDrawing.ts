@@ -134,8 +134,13 @@ export function hexagonalPlaneLevel(indices: Point4) {
   const values = hexPrismCorners.map((point) => hexagonalPlaneCoordinate(indices, point));
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
-  if (minimum - 1e-12 <= 1 && maximum + 1e-12 >= 1) return 1;
-  if (minimum - 1e-12 <= -1 && maximum + 1e-12 >= -1) return -1;
+  for (const level of [1, -1]) {
+    if (minimum + 1e-12 < level && maximum - 1e-12 > level) return level;
+    // A supporting plane must contain a face, not just touch an edge or vertex.
+    const boundary = hexPrismCorners.filter((_, index) => Math.abs(values[index] - level) < 1e-12);
+    if (boundary.length >= 3 && boundary.slice(2).some((point) =>
+      Math.hypot(...cross(sub(boundary[1], boundary[0]), sub(point, boundary[0]))) > 1e-12)) return level;
+  }
   throw new Error('当前六方晶面无法在晶胞内清晰绘制。');
 }
 
@@ -203,5 +208,5 @@ export function fractionText(numerator: number, denominator = 1) {
 }
 
 export function interceptText(index: number, planeLevel = 1) {
-  return index === 0 ? '∞（平行）' : `${fractionText(planeLevel, index)}a`;
+  return index === 0 ? '∞（平行）' : fractionText(planeLevel, index);
 }
