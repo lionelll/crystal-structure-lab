@@ -282,6 +282,83 @@ export function drawingCameraPreset(aspect: number, reference: DrawingCameraRefe
   return { up: [...reference.up] as Point3, target: target.toArray() as Point3, position: target.clone().addScaledVector(direction, distance).toArray() as Point3 };
 }
 
+export type DrawingOcclusion = { left: number; top: number; right: number; bottom: number };
+
+type ScreenBox = DrawingOcclusion;
+
+function drawingPlacement(box: ScreenBox, viewport: THREE.Vector2, panel?: DrawingOcclusion) {
+  const full = { left: 8, top: 8, right: viewport.x - 8, bottom: viewport.y - 8 };
+  const overlaps = (a: ScreenBox, b: ScreenBox) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  const obstacle = panel && { left: panel.left - 8, top: panel.top - 8, right: panel.right + 8, bottom: panel.bottom + 8 };
+  const shiftInto = (area: ScreenBox) => {
+    if (box.right - box.left > area.right - area.left || box.bottom - box.top > area.bottom - area.top) return null;
+    return new THREE.Vector2(THREE.MathUtils.clamp(0, area.left - box.left, area.right - box.right), THREE.MathUtils.clamp(0, area.top - box.top, area.bottom - box.bottom));
+  };
+  const natural = shiftInto(full);
+  if (natural && (!obstacle || !overlaps({ left: box.left + natural.x, right: box.right + natural.x, top: box.top + natural.y, bottom: box.bottom + natural.y }, obstacle))) return natural;
+  if (!obstacle) return null;
+  const candidates = [
+    { ...full, right: Math.min(full.right, obstacle.left) },
+    { ...full, left: Math.max(full.left, obstacle.right) },
+    { ...full, bottom: Math.min(full.bottom, obstacle.top) },
+    { ...full, top: Math.max(full.top, obstacle.bottom) },
+  ].map(shiftInto).filter((value): value is THREE.Vector2 => value !== null);
+  return candidates.sort((a, b) => a.lengthSq() - b.lengthSq())[0] ?? null;
+}
+
+// Fit only the currently displayed frame and axes. User gestures bypass this discrete correction.
+export function fitDrawingCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, viewport: THREE.Vector2, context: DrawingScene, panel?: DrawingOcclusion, rotating = false) {
+  if (viewport.x <= 0 || viewport.y <= 0) return;
+  const previous = camera.userData.drawingFitRatio as number | undefined;
+  if (previous) camera.position.sub(target).divideScalar(previous).add(target);
+  camera.clearViewOffset();
+  camera.updateMatrixWorld();
+  const root = context.frame.parent!;
+  root.updateMatrixWorld(true);
+  const samples: { point: THREE.Vector3; x: number; y: number }[] = [];
+  const add = (point: THREE.Vector3, x = 0, y = 0) => {
+    if (!rotating) { samples.push({ point, x, y }); return; }
+    const radius = Math.hypot(point.x, point.y) / Math.cos(Math.PI / 72);
+    // Circumscribed polygon contains the full orbit; no per-frame camera correction.
+    for (let i = 0; i < 72; i++) samples.push({ point: new THREE.Vector3(radius * Math.cos(i * Math.PI / 36), radius * Math.sin(i * Math.PI / 36), point.z), x, y });
+  };
+  for (const layer of [context.frame, context.axes]) layer.traverse(object => {
+    if (object instanceof THREE.Sprite) {
+      const halfHeight = labelHeight * camera.zoom / 2;
+      add(object.getWorldPosition(new THREE.Vector3()), halfHeight * object.scale.x / object.scale.y, halfHeight);
+    } else if (object instanceof THREE.Mesh || object instanceof THREE.Line) {
+      const positions = object.geometry.getAttribute('position');
+      for (let i = 0; i < positions.count; i++) add(new THREE.Vector3().fromBufferAttribute(positions, i).applyMatrix4(object.matrixWorld));
+    }
+  });
+  const trial = camera.clone();
+  const offset = camera.position.clone().sub(target);
+  const measure = (ratio: number) => {
+    trial.position.copy(target).addScaledVector(offset, ratio);
+    trial.updateMatrixWorld();
+    const box = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+    for (const sample of samples) {
+      const point = sample.point.clone().project(trial);
+      const x = (point.x + 1) * viewport.x / 2, y = (1 - point.y) * viewport.y / 2;
+      box.left = Math.min(box.left, x - sample.x); box.right = Math.max(box.right, x + sample.x);
+      box.top = Math.min(box.top, y - sample.y); box.bottom = Math.max(box.bottom, y + sample.y);
+    }
+    return drawingPlacement(box, viewport, panel);
+  };
+  let ratio = 1, shift = measure(ratio);
+  if (!shift) {
+    let low = 1, high = 2;
+    while (!measure(high) && high < 64) high *= 2;
+    for (let i = 0; i < 24; i++) { const mid = (low + high) / 2; if (measure(mid)) high = mid; else low = mid; }
+    ratio = high; shift = measure(ratio);
+  }
+  if (!shift) return;
+  camera.position.copy(target).addScaledVector(offset, ratio);
+  camera.userData.drawingFitRatio = ratio;
+  camera.setViewOffset(viewport.x, viewport.y, -shift.x, -shift.y, viewport.x, viewport.y);
+  camera.updateMatrixWorld();
+}
+
 export function setDrawingCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, viewport: THREE.Vector2, reference: DrawingCameraReference, crystalSystem: DrawingCrystalSystem = 'cubic') {
   const preset = drawingCameraPreset(viewport.x / viewport.y, reference, viewport.y, crystalSystem);
   const fittedTarget = new THREE.Vector3(...preset.target);
@@ -293,6 +370,8 @@ export function setDrawingCamera(camera: THREE.PerspectiveCamera, target: THREE.
   camera.position.copy(target).addScaledVector(direction, distance);
   camera.zoom = drawingModelMagnification;
   camera.userData.drawingBaseDistance = camera.position.distanceTo(target);
+  delete camera.userData.drawingFitRatio;
+  camera.clearViewOffset();
   camera.updateProjectionMatrix();
 }
 
@@ -305,6 +384,10 @@ export function resizeDrawingCamera(camera: THREE.PerspectiveCamera, target: THR
   camera.position.sub(target).multiplyScalar(ratio).add(target);
   camera.userData.drawingBaseDistance = distance;
   camera.aspect = viewport.x / viewport.y;
+  if (camera.view?.enabled) {
+    const view = camera.view;
+    camera.setViewOffset(viewport.x, viewport.y, view.offsetX * viewport.x / view.fullWidth, view.offsetY * viewport.y / view.fullHeight, viewport.x, viewport.y);
+  }
   camera.updateProjectionMatrix();
   return ratio;
 }

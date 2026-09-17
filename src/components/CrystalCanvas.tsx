@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { crystals, resolveCrystal, type CrystalType, type DisplaySettings, type ModuleId } from '../data/crystals';
 import type { CrystalDrawing, DrawingCrystalSystem } from '../core/crystalDrawing';
-import { createDrawingScene, drawingCameraReference, resizeDrawingCamera, setDrawingCamera, tickDrawingScene, updateDrawingScene, type DrawingScene } from '../render/crystalDrawingScene';
+import { createDrawingScene, drawingCameraReference, fitDrawingCamera, resizeDrawingCamera, setDrawingCamera, tickDrawingScene, updateDrawingScene, type DrawingScene } from '../render/crystalDrawingScene';
 import { addPackingDirectionVector, createPackingPlaneMaterial, packingDirectionColor } from '../render/packingPrimitives';
 import { createTextSprite } from '../render/textSprite';
 export { packingDirectionStyle, packingPlaneColor } from '../render/packingPrimitives';
@@ -232,6 +232,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   const controlsRef = useRef<OrbitControls | null>(null);
   const rootRef = useRef<THREE.Group | null>(null);
   const drawingSceneRef = useRef<DrawingScene | null>(null);
+  const drawingManualViewRef = useRef(false);
   const pickablesRef = useRef<THREE.Object3D[]>([]);
   const settingsRef = useRef(settings);
   const moduleRef = useRef(activeModule);
@@ -248,10 +249,31 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   const cameraTransitionFrameRef = useRef<number | null>(null);
   const structureKey = sceneStructureKey(crystal, activeModule, settings, drawingSystem);
 
+  function fitCurrentDrawing() {
+    const camera = cameraRef.current, controls = controlsRef.current, canvas = rendererRef.current?.domElement;
+    const context = drawingSceneRef.current;
+    if (!camera || !controls || !canvas || !context || drawingManualViewRef.current) return;
+    fitDrawingCamera(camera, controls.target, new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), context, drawingPanelOcclusion(canvas), settingsRef.current.autoRotate);
+  }
+
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { moduleRef.current = activeModule; }, [activeModule]);
   useEffect(() => { crystalRef.current = crystal; }, [crystal]);
   useEffect(() => { drawingSystemRef.current = drawingSystem; }, [drawingSystem]);
+  useEffect(() => {
+    if (activeModule !== 'drawing') return;
+    const canvas = rendererRef.current?.domElement;
+    const panel = canvas?.closest('.stage-panel')?.querySelector('.drawing-controls');
+    if (!canvas || !panel) return;
+    const observer = new ResizeObserver(() => {
+      const camera = cameraRef.current, controls = controlsRef.current;
+      if (!camera || !controls || !canvas.clientWidth || !canvas.clientHeight) return;
+      fitCurrentDrawing();
+    });
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [activeModule, crystal, drawingSystem]);
+  useEffect(() => { fitCurrentDrawing(); }, [settings.autoRotate]);
   useEffect(() => {
     setSelectedGapIndex(0);
     if (activeModule !== 'coordination') setCoordinationTarget(null);
@@ -268,6 +290,8 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       setDefaultCamera(camera, controls, crystal, repeat, activeModule, drawingSystem);
       setCellFrameGroupProgress(coordinationFrameGroupRef.current, 1);
       rootRef.current?.rotation.set(0, 0, 0);
+      drawingManualViewRef.current = false;
+      fitCurrentDrawing();
     },
     capture() {
       const renderer = rendererRef.current;
@@ -310,6 +334,10 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     controls.minDistance = 3.2;
     controls.maxDistance = 18;
     controlsRef.current = controls;
+    const handleDrawingGesture = () => {
+      if (moduleRef.current === 'drawing') drawingManualViewRef.current = true;
+    };
+    controls.addEventListener('start', handleDrawingGesture);
 
     const root = new THREE.Group();
     rootRef.current = root;
@@ -337,6 +365,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
         const ratio = resizeDrawingCamera(camera, controls.target, new THREE.Vector2(mount.clientWidth, mount.clientHeight), drawingCameraReference(system), system);
         controls.minDistance *= ratio;
         controls.maxDistance *= ratio;
+        fitCurrentDrawing();
       }
     });
     resizeObserver.observe(mount);
@@ -415,6 +444,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
       controls.dispose();
+      controls.removeEventListener('start', handleDrawingGesture);
       clearGroup(root);
       renderer.dispose();
       mount.removeChild(renderer.domElement);
@@ -434,6 +464,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
       coordAnimRef.current = { objects: [], startTime: 0 };
       centerPulseRef.current = null;
       drawingSceneRef.current = createDrawingScene(root, drawingSystem);
+      drawingManualViewRef.current = false;
       const controls = controlsRef.current;
       const limits = controls && { min: controls.minDistance, max: controls.maxDistance };
       return () => {
@@ -529,7 +560,10 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
   }, [structureKey]);
 
   useEffect(() => {
-    if (drawingSceneRef.current) updateDrawingScene(drawingSceneRef.current, drawing);
+    if (drawingSceneRef.current) {
+      updateDrawingScene(drawingSceneRef.current, drawing);
+      fitCurrentDrawing();
+    }
   }, [drawing, structureKey]);
 
   useEffect(() => {
@@ -564,6 +598,7 @@ export const CrystalCanvas = forwardRef<CrystalCanvasHandle, Props>(function Cry
     cameraTransitionFrameRef.current = null;
 
     setDefaultCamera(camera, controls, crystal, repeat, activeModule, drawingSystem);
+    fitCurrentDrawing();
     setCellFrameGroupProgress(coordinationFrameGroupRef.current, 1);
   }, [structureKey]);
 
@@ -1386,6 +1421,16 @@ export function cameraPreset(crystal: CrystalType, repeat: number, activeModule:
   };
 }
 
+function drawingPanelOcclusion(canvas: Element | null) {
+  const panel = canvas?.closest('.stage-panel')?.querySelector('.drawing-controls');
+  if (!panel || !canvas) return undefined;
+  const rect = panel.getBoundingClientRect(), viewport = canvas.getBoundingClientRect();
+  const hexagonal = panel.classList.contains('is-hexagonal');
+  // Mobile hexagonal controls already occupy a separate grid row.
+  if (hexagonal && rect.bottom <= viewport.top) return undefined;
+  return { left: rect.left - viewport.left, top: rect.top - viewport.top, right: rect.right - viewport.left, bottom: rect.bottom - viewport.top };
+}
+
 function setDefaultCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, crystal: CrystalType, repeat: number, activeModule: ModuleId, drawingSystem: DrawingCrystalSystem = 'cubic') {
   if (activeModule === 'drawing') {
     const height = controls.domElement?.clientHeight || 700;
@@ -1395,6 +1440,11 @@ function setDefaultCamera(camera: THREE.PerspectiveCamera, controls: OrbitContro
     controls.maxDistance = 50;
     controls.update();
     return;
+  }
+  if (camera.userData.drawingBaseDistance !== undefined) {
+    camera.clearViewOffset();
+    delete camera.userData.drawingBaseDistance;
+    delete camera.userData.drawingFitRatio;
   }
   const preset = cameraPreset(crystal, repeat, activeModule);
   camera.zoom = 1;
