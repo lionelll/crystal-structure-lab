@@ -6,6 +6,20 @@ import { DrawingInfo } from './DrawingInfo';
 
 describe('drawing information panel', () => {
   it.each([
+    { indices: [2, -1, -1, 0] as const, displayed: '(2/3, -1/3, -1/3, 0)' },
+    { indices: [-1, 2, -1, 3] as const, displayed: '(-1/3, 2/3, -1/3, 1)' },
+    { indices: [-1, 2, -1, 1] as const, displayed: '(-1/3, 2/3, -1/3, 1/3)' },
+    { indices: [0, 0, 0, -1] as const, displayed: '(0, 0, 0, -1)' },
+  ])('shows the clipped four-axis endpoint for $indices', ({ indices, displayed }) => {
+    const state = initialDrawingState();
+    state.crystalSystem = 'hexagonal';
+    state.mode = 'direction';
+    state.applied = createHexagonalDrawing('direction', [...indices]);
+    const html = renderToStaticMarkup(<DrawingInfo state={state} />);
+    expect(html).toContain(`<dt>相对终点：</dt><dd>${displayed}</dd>`);
+  });
+
+  it.each([
     { drawing: createCrystalDrawing('plane', [1, -1, 0]), lines: ['X：1', 'Y：-1', 'Z：∞（平行）'] },
     { drawing: createCrystalDrawing('plane', [2, -3, 1]), lines: ['X：1/2', 'Y：-1/3', 'Z：1'] },
     { drawing: createHexagonalDrawing('plane', [1, 0, -1, 0]), lines: ['a₁：1', 'a₂：∞（平行）', 'a₃：-1', 'c：∞（平行）'] },

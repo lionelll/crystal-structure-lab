@@ -158,7 +158,14 @@ export function hexagonalPlaneVertices(indices: Point4): Point3[] {
 
 export function hexagonalDirectionEnd(indices: Point4): { origin: Point3; end: Point3; divisor: number } {
   const [u, v, t, w] = indices;
-  const direction: Point3 = [u - (v + t) / 2, Math.sqrt(3) * (v - t) / 2, w];
+  const basalU = u - t;
+  const basalV = v - t;
+  // Basal basis vectors end at prism vertices; c spans the full prism height.
+  const direction: Point3 = [
+    hexRadius * (basalU - basalV / 2),
+    hexRadius * Math.sqrt(3) * basalV / 2,
+    w,
+  ];
   const magnitude = Math.hypot(...direction);
   if (magnitude === 0) throw new Error('六方晶向的方向矢量不能为 0。');
   const unit = direction.map((value) => value / magnitude) as Point3;
@@ -173,7 +180,10 @@ export function hexagonalDirectionEnd(indices: Point4): { origin: Point3; end: P
   if (unit[2] < -1e-12) distance = Math.min(distance, (-0.5 - origin[2]) / unit[2]);
   if (!Number.isFinite(distance) || distance <= 0) distance = hexRadius;
   const end = origin.map((value, index) => value + unit[index] * distance) as Point3;
-  return { origin, end, divisor: Math.max(...indices.map(Math.abs)) };
+  // The basal prism is bounded by |U|, |V| and |U-V|; w bounds its height.
+  const divisor = Math.max(Math.abs(basalU), Math.abs(basalV), Math.abs(basalU - basalV), Math.abs(w));
+  if (!Number.isSafeInteger(divisor)) throw new Error('转换后的指数超出可计算的整数范围。');
+  return { origin, end, divisor };
 }
 
 export function createCrystalDrawing(mode: DrawingMode, indices: Point3): CrystalDrawing {

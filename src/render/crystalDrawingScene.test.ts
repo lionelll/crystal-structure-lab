@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { createCrystalDrawing, createHexagonalDrawing, cubeCorners, type Point3 } from '../core/crystalDrawing';
+import { createCrystalDrawing, createHexagonalDrawing, cubeCorners, hexPrismCorners, type Point3 } from '../core/crystalDrawing';
 import { latticeGeometry } from '../data/latticeGeometry';
 import { cameraPreset, createAtoms, sceneStructureKey } from '../components/CrystalCanvas';
 import { createDrawingScene, disposeDrawingLayer, drawingAxisLength, drawingCameraPreset, drawingCameraReference, setDrawingCamera, tickDrawingScene, updateDrawingScene } from './crystalDrawingScene';
@@ -91,6 +91,17 @@ describe('drawing overlay lifecycle', () => {
     updateDrawingScene(context, createHexagonalDrawing('direction', [2, -1, -1, 0]));
     expect(context.overlay.getObjectByName('drawn-plane')).toBeFalsy();
     expect(context.overlay.getObjectByName('drawing-index-label')).toBeTruthy();
+    disposeDrawingLayer(root);
+  });
+
+  it('renders the [-1,2,-1,3] arrow tip on the upper a2 vertex', () => {
+    const root = new THREE.Group();
+    const context = createDrawingScene(root, 'hexagonal');
+    updateDrawingScene(context, createHexagonalDrawing('direction', [-1, 2, -1, 3]));
+    const arrow = context.overlay.children.find((object) => object.type === 'ArrowHelper') as THREE.ArrowHelper;
+    const tip = arrow.cone.getWorldPosition(new THREE.Vector3());
+    const vertex = new THREE.Vector3(...hexPrismCorners[8]).multiplyScalar(latticeGeometry.FCC.worldA);
+    expect(tip.distanceTo(vertex)).toBeLessThan(1e-10);
     disposeDrawingLayer(root);
   });
 
